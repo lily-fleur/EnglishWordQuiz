@@ -1,26 +1,26 @@
 // =======================================
 //  Googleスプレッドシートの CSV URL
 //  -------------------------------------
-//  1. シートの1行目に「en,ja,level」と書く
+//  1. シートの1行目に「en,ja,year」と書く
 //  2. ファイル → 共有 → ウェブに公開 → CSV を選ぶ
 //  3. 出てきた URL を下の CSV_URL に貼る
 // =======================================
 
-const CSV_URL = "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0"; // ←ここをあとで差し替え
-
+const CSV_URL =
+  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
 
 // =============================
 //  グローバル状態
 // =============================
 
-let WORDS = [];          // 全単語
-let sessionWords = [];   // 今回の出題リスト
-let wrongWords = [];     // 間違えた単語リスト
-let lastSettings = null; // { mode, level, count }
+let WORDS = [];            // 全単語
+let sessionWords = [];     // 今回の出題リスト
+let wrongWords = [];       // 間違えた単語リスト
+let lastSettings = null;   // { mode, year, count }
 let currentIndex = 0;
 let correctCount = 0;
 let hasAnswered = false;
-let currentMode = "en-ja";      // "en-ja" or "ja-en"
+let currentMode = "en-ja";       // "en-ja" or "ja-en"
 let currentSessionType = "normal"; // "normal" or "wrong";
 
 // =============================
@@ -31,12 +31,12 @@ let currentSessionType = "normal"; // "normal" or "wrong";
 function parseCSV(text) {
   const lines = text
     .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0);
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map(h => h.trim());
+  const headers = lines[0].split(",").map((h) => h.trim());
   const rows = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -59,12 +59,13 @@ function shuffle(arr) {
   return a;
 }
 
+// スプレッドシート1行分 → アプリ内部形式
 function normalizeRow(row, idx) {
   return {
-    id: idx,                    // 一意なID（インデックスでOK）
-    en: row.en || "",
-    ja: row.ja || "",
-    level: row.level || row.Level || row.Nivel || ""
+    id: idx,                       // 一意なID
+    en: row.en || "",              // 英単語
+    ja: row.ja || "",              // 日本語
+    year: row.year || row.Year || "" // 年度（"2022" など）
   };
 }
 
@@ -86,34 +87,34 @@ async function loadWordsFromSheet() {
 
 window.addEventListener("load", async () => {
   // ---- DOM ----
-  const screenHome   = document.getElementById("screen-home");
-  const screenQuiz   = document.getElementById("screen-quiz");
+  const screenHome = document.getElementById("screen-home");
+  const screenQuiz = document.getElementById("screen-quiz");
   const screenResult = document.getElementById("screen-result");
 
-  const startBtn       = document.getElementById("start-btn");
-  const nextBtn        = document.getElementById("next-btn");
-  const retryBtn       = document.getElementById("retry-btn");
-  const retryWrongBtn  = document.getElementById("retry-wrong-btn");
-  const backHomeBtn    = document.getElementById("back-home-btn");
+  const startBtn = document.getElementById("start-btn");
+  const nextBtn = document.getElementById("next-btn");
+  const retryBtn = document.getElementById("retry-btn");
+  const retryWrongBtn = document.getElementById("retry-wrong-btn");
+  const backHomeBtn = document.getElementById("back-home-btn");
 
   const questionCountSelect = document.getElementById("question-count");
-  const levelSelect         = document.getElementById("level-filter");
+  const yearSelect = document.getElementById("year-filter");
 
-  const statusEl      = document.getElementById("status");
-  const questionEl    = document.getElementById("question-text");
-  const choicesEl     = document.getElementById("choices");
-  const feedbackEl    = document.getElementById("feedback");
+  const statusEl = document.getElementById("status");
+  const questionEl = document.getElementById("question-text");
+  const choicesEl = document.getElementById("choices");
+  const feedbackEl = document.getElementById("feedback");
   const progressBarEl = document.getElementById("progress-bar");
 
   const resultSummaryEl = document.getElementById("result-summary");
-  const resultDetailEl  = document.getElementById("result-detail");
+  const resultDetailEl = document.getElementById("result-detail");
 
   // ---- 単語ロード ----
   try {
     const rawRows = await loadWordsFromSheet();
     WORDS = rawRows
       .map(normalizeRow)
-      .filter(w => w.en && w.ja);
+      .filter((w) => w.en && w.ja); // en / ja 両方入っているものだけ
 
     if (!WORDS.length) {
       alert("単語データが空です。スプレッドシートの内容を確認してください。");
@@ -132,8 +133,8 @@ window.addEventListener("load", async () => {
   // =============================
 
   function showScreen(name) {
-    screenHome.style.display   = name === "home"   ? "block" : "none";
-    screenQuiz.style.display   = name === "quiz"   ? "block" : "none";
+    screenHome.style.display = name === "home" ? "block" : "none";
+    screenQuiz.style.display = name === "quiz" ? "block" : "none";
     screenResult.style.display = name === "result" ? "block" : "none";
   }
 
@@ -159,7 +160,7 @@ window.addEventListener("load", async () => {
       hasAnswered = true;
 
       const buttons = choicesEl.querySelectorAll("button");
-      buttons.forEach(b => (b.disabled = true));
+      buttons.forEach((b) => (b.disabled = true));
 
       if (isCorrect) {
         correctCount++;
@@ -170,11 +171,11 @@ window.addEventListener("load", async () => {
         btn.classList.add("wrong");
 
         // 正解のボタンをハイライト
-        buttons.forEach(b => {
+        buttons.forEach((b) => {
           if (b.dataset.correct === "1") b.classList.add("correct");
         });
 
-        // 間違えた問題を保存（重複は無視）
+        // 間違えた問題を保存（同じオブジェクト参照がなければ追加）
         if (!wrongWords.includes(word)) {
           wrongWords.push(word);
         }
@@ -223,14 +224,12 @@ window.addEventListener("load", async () => {
 
     // 他の単語からダミー選択肢を作る
     const others = shuffle(
-      WORDS.filter(w => w.id !== word.id && w[field])
+      WORDS.filter((w) => w.id !== word.id && w[field])
     ).slice(0, 3);
 
-    const options = shuffle(
-      [correctAnswer].concat(others.map(w => w[field]))
-    );
+    const options = shuffle([correctAnswer].concat(others.map((w) => w[field])));
 
-    options.forEach(opt => {
+    options.forEach((opt) => {
       const isCorrect = opt === correctAnswer;
       const btn = buildChoiceButton(opt, isCorrect, word);
       choicesEl.appendChild(btn);
@@ -241,9 +240,8 @@ window.addEventListener("load", async () => {
 
   function endSession() {
     const total = sessionWords.length || 0;
-    const percent = total === 0
-      ? 0
-      : ((correctCount / total) * 100).toFixed(1);
+    const percent =
+      total === 0 ? 0 : ((correctCount / total) * 100).toFixed(1);
 
     resultSummaryEl.textContent =
       total === 0
@@ -254,7 +252,6 @@ window.addEventListener("load", async () => {
       resultDetailEl.textContent = "条件を変えてもう一度やってみよう。";
     } else if (percent === "100.0") {
       if (currentSessionType === "wrong") {
-        // 🔁 間違えた問題だけをやり直した回で全問正解
         resultDetailEl.textContent = "前に間違えた問題は全部解き直せたよ👍";
       } else {
         resultDetailEl.textContent = "全問正解！🎉 その調子！";
@@ -271,7 +268,7 @@ window.addEventListener("load", async () => {
   }
 
   function startNormalSession(settings) {
-    let mode, level, count;
+    let mode, year, count;
 
     currentSessionType = "normal";
     wrongWords = []; // 新しい通常回ではリセット
@@ -280,31 +277,33 @@ window.addEventListener("load", async () => {
     if (!settings) {
       const modeInput = document.querySelector('input[name="mode"]:checked');
       mode = modeInput ? modeInput.value : "en-ja";
-      level = levelSelect.value;
-      count = questionCountSelect.value;
-      lastSettings = { mode, level, count };
+      year = yearSelect ? yearSelect.value : "all";
+      count = questionCountSelect ? questionCountSelect.value : "all";
+      lastSettings = { mode, year, count };
     } else {
-      ({ mode, level, count } = settings);
+      ({ mode, year, count } = settings);
     }
 
     // フィルタ
     let pool = WORDS.slice();
-    if (level !== "all") {
-      pool = pool.filter(w => w.level === level);
+    if (yearSelect && year !== "all") {
+      pool = pool.filter((w) => (w.year || "") === year);
     }
 
     if (!pool.length) {
-      alert("そのレベルの単語がありません。レベル条件を変えてください。");
+      alert("その年度の単語がありません。年度の条件を変えてください。");
       return;
     }
 
-    const num = count === "all"
-      ? pool.length
-      : Math.min(parseInt(count, 10), pool.length);
+    const num =
+      count === "all" ? pool.length : Math.min(parseInt(count, 10), pool.length);
 
     sessionWords = shuffle(pool).slice(0, num);
     currentIndex = 0;
     correctCount = 0;
+
+    // 進捗バー初期化
+    progressBarEl.style.width = "0%";
 
     showScreen("quiz");
     showQuestion();
@@ -321,6 +320,8 @@ window.addEventListener("load", async () => {
     sessionWords = shuffle(wrongWords.slice()); // コピーしてシャッフル
     currentIndex = 0;
     correctCount = 0;
+
+    progressBarEl.style.width = "0%";
 
     showScreen("quiz");
     showQuestion();
