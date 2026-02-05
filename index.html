@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>英単語 4択クイズ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>英単語 4択クイズ</h1>
+
+  <!-- ホーム画面 -->
+  <section id="screen-home" class="card">
+    <p>モードをえらんでね：</p>
+    <div class="mode-row">
+      <label class="mode-radio">
+        <input type="radio" name="mode" value="en-ja" checked />
+        <span>英語 → 日本語</span>
+      </label>
+      <label class="mode-radio">
+        <input type="radio" name="mode" value="ja-en" />
+        <span>日本語 → 英語</span>
+      </label>
+    </div>
+
+    <p>何問やる？</p>
+    <select id="question-count">
+      <option value="5">5問</option>
+      <option value="10" selected>10問</option>
+      <option value="20">20問</option>
+      <option value="all">全部</option>
+    </select>
+
+    <p>年度</p>
+<select id="year-filter">
+  <option value="all" selected>全部</option>
+  <option value="2022">2022</option>
+  <option value="2021">2021</option>
+  <option value="2020">2020</option>
+</select>
+
+    <p class="small">
+      Googleスプレッドシートの単語データを使った4択クイズです。<br />
+      モードやレベルを変えて繰り返し練習してね。
+    </p>
+
+    <button id="start-btn" class="primary-btn">スタート ▶</button>
+  </section>
+
+  <!-- クイズ画面 -->
+  <section id="screen-quiz" class="card" style="display:none;">
+    <div class="quiz-header">
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="progress">
+      <div id="progress-bar" class="progress-bar"></div>
+    </div>
+
+    <div class="question-block">
+      <div id="question-text" class="question-text">読み込み中...</div>
+    </div>
+
+    <div id="choices" class="choices">
+      <!-- JSでボタン4つ作る -->
+    </div>
+
+    <div id="feedback" class="feedback"></div>
+
+    <button id="next-btn" class="next-btn" disabled>次の問題 ▶</button>
+  </section>
+
+  <!-- 結果画面 -->
+  <section id="screen-result" class="card" style="display:none;">
+    <h2>結果</h2>
+    <p id="result-summary"></p>
+    <p id="result-detail"></p>
+
+    <div class="result-buttons">
+      <button id="retry-btn" class="primary-btn">同じ条件でもう一度 🔁</button>
+      <button id="retry-wrong-btn" class="secondary-btn" disabled>
+        間違えた問題だけもう一度
+      </button>
+      <button id="back-home-btn" class="ghost-btn">ホームに戻る ⏮</button>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
