@@ -29,6 +29,20 @@
       </label>
     </div>
 
+    <!-- ★ ここから追加：出題形式（4択 / 記述） -->
+    <p>出題形式</p>
+    <div class="mode-row">
+      <label class="mode-radio">
+        <input type="radio" name="qtype" value="choice" checked />
+        <span>4択</span>
+      </label>
+      <label class="mode-radio">
+        <input type="radio" name="qtype" value="input" />
+        <span>記述</span>
+      </label>
+    </div>
+    <!-- ★ ここまで追加 -->
+
     <p>何問やる？</p>
     <select id="question-count">
       <option value="5">5問</option>
