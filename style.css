@@ -312,6 +312,14 @@ button {
     border-color var(--transition-fast), opacity var(--transition-fast);
 }
 
+/* 記述問題用の横並びボタン調整 */
+.secondary-btn.answer-btn {
+  width: auto;          /* 全幅をやめる */
+  flex: 0 0 auto;
+  padding-inline: 16px; /* 横だけ少し余裕を持たせる */
+  white-space: nowrap;  /* 文字で折り返さない */
+}
+
 /* メインボタン */
 
 .primary-btn,
