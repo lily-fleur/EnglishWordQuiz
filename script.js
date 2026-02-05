@@ -261,81 +261,80 @@ window.addEventListener("load", async () => {
       .trim();
   }
 
-  function isCorrectInput(userInput, correctAnswer) {
-    const u = normalizeAnswer(userInput);
-    if (!u) return false;
+function isCorrectInput(userInput, answers) {
+  const u = normalizeAnswer(userInput);
+  if (!u) return false;
 
-    // 正解が「a / b」みたいに複数書かれている場合も一応考慮
-    return correctAnswer
-      .split(/[\/,;]/)
-      .map((s) => normalizeAnswer(s))
-      .some((ans) => ans && ans === u);
-  }
+  // answers は ["本質的要素", "本質的な要素"] みたいな配列を想定
+  return answers
+    .map((s) => normalizeAnswer(s))
+    .some((ans) => ans && ans === u);
+}
 
-  function buildInputQuestion(correctAnswer, word) {
-    const wrapper = document.createElement("div");
-    wrapper.style.display = "flex";
-    wrapper.style.gap = "8px";
-    wrapper.style.marginBottom = "8px";
+function buildInputQuestion(correctAnswers, word) {
+  const wrapper = document.createElement("div");
+  wrapper.style.display = "flex";
+  wrapper.style.gap = "8px";
+  wrapper.style.marginBottom = "8px";
 
-    const input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = "ここに入力";
-    input.style.flex = "1";
-    input.style.padding = "8px 10px";
-    input.style.borderRadius = "12px";
-    input.style.border = "1px solid rgba(255,255,255,0.12)";
-    input.style.background = "rgba(8,13,26,0.95)";
-    input.style.color = "#f5f7ff";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "ここに入力";
+  input.style.flex = "1";
+  input.style.padding = "8px 10px";
+  input.style.borderRadius = "12px";
+  input.style.border = "1px solid rgba(255,255,255,0.12)";
+  input.style.background = "rgba(8,13,26,0.95)";
+  input.style.color = "#f5f7ff";
 
-    const checkBtn = document.createElement("button");
-    checkBtn.textContent = "答え合わせ";
-    checkBtn.className = "secondary-btn answer-btn";
-    checkBtn.style.flex = "0 0 auto";
+  const checkBtn = document.createElement("button");
+  checkBtn.textContent = "答え合わせ";
+  checkBtn.className = "secondary-btn answer-btn";
+  checkBtn.style.flex = "0 0 auto";
 
-    wrapper.appendChild(input);
-    wrapper.appendChild(checkBtn);
-    choicesEl.appendChild(wrapper);
+  wrapper.appendChild(input);
+  wrapper.appendChild(checkBtn);
+  choicesEl.appendChild(wrapper);
 
-    // Enter で答え合わせ
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        checkBtn.click();
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      checkBtn.click();
+    }
+  });
+
+  checkBtn.addEventListener("click", () => {
+    if (hasAnswered) return;
+    hasAnswered = true;
+
+    const user = input.value;
+    const ok = isCorrectInput(user, correctAnswers);
+
+    const answerLabel = correctAnswers.join(" / ");
+
+    if (ok) {
+      correctCount++;
+      feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
+    } else {
+      feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
+      if (!wrongWords.includes(word)) {
+        wrongWords.push(word);
       }
-    });
+    }
 
-    checkBtn.addEventListener("click", () => {
-      if (hasAnswered) return;
-      hasAnswered = true;
+    updateStats(word, ok);
 
-      const user = input.value;
-      const ok = isCorrectInput(user, correctAnswer);
+    if (wrongWords.length > 0) {
+      retryWrongBtn.disabled = false;
+    }
 
-      if (ok) {
-        correctCount++;
-        feedbackEl.textContent = `⭕ 正解！ (${correctAnswer})`;
-      } else {
-        feedbackEl.textContent = `❌ 不正解。正解: ${correctAnswer}`;
-        if (!wrongWords.includes(word)) {
-          wrongWords.push(word);
-        }
-      }
+    input.disabled = true;
+    checkBtn.disabled = true;
+    nextBtn.disabled = false;
+  });
 
-      updateStats(word, ok);
-
-      if (wrongWords.length > 0) {
-        retryWrongBtn.disabled = false;
-      }
-
-      input.disabled = true;
-      checkBtn.disabled = true;
-      nextBtn.disabled = false;
-    });
-
-    // 自動フォーカス
-    setTimeout(() => input.focus(), 0);
-  }
+  setTimeout(() => input.focus(), 0);
+}
 
 function showQuestion() {
   if (currentIndex >= sessionWords.length) {
@@ -355,36 +354,41 @@ function showQuestion() {
 
   // 出題形式
   const styleInput = document.querySelector('input[name="qtype"]:checked');
-  const currentStyle = styleInput ? styleInput.value : "choice"; // "choice" or "input"
+  const qtype = styleInput ? styleInput.value : "choice"; // "choice" or "input"
 
-  let questionText, correctAnswer, field;
+  let questionText;
+  let correctAnswers = []; // ★ 配列で持つ
+  let field;
 
   if (currentMode === "en-ja") {
     questionText = word.en;
-    correctAnswer = word.ja;
+    // ja_main + ja_sub を両方候補にする（記述で使う）
+    correctAnswers = [word.ja, word.jaSub].filter(Boolean);
     field = "ja";
   } else {
     questionText = word.ja;
-    correctAnswer = word.en;
+    correctAnswers = [word.en]; // 英語側は基本1つでOK
     field = "en";
   }
 
   questionEl.textContent = questionText;
 
-  if (currentStyle === "input") {
-    // ★ 記述問題モード
-    buildInputQuestion(correctAnswer, word);
+  if (qtype === "input") {
+    // ★ 記述問題モード：複数候補すべて正解扱い
+    buildInputQuestion(correctAnswers, word);
   } else {
-    // ★ 4択モード
+    // ★ 4択モード：メインの意味だけを使う（最初の1個）
+    const correctAnswer = correctAnswers[0];
+
     const others = shuffle(
-      WORDS.filter(w => w.id !== word.id && w[field])
+      WORDS.filter((w) => w.id !== word.id && w[field])
     ).slice(0, 3);
 
     const options = shuffle(
-      [correctAnswer].concat(others.map(w => w[field]))
+      [correctAnswer].concat(others.map((w) => w[field]))
     );
 
-    options.forEach(opt => {
+    options.forEach((opt) => {
       const isCorrect = opt === correctAnswer;
       const btn = buildChoiceButton(opt, isCorrect, word);
       choicesEl.appendChild(btn);
