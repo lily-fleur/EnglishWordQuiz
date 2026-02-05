@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8" />
   <title>英単語 4択クイズ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow">
   <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
   <h1>英単語 4択クイズ</h1>
 
@@ -33,14 +38,14 @@
     </select>
 
     <p>年度</p>
-<select id="year-filter">
-  <option value="all" selected>全部</option>
-  <option value="2025">2025</option>
-  <option value="2024">2024</option>
-  <option value="2023">2023</option>
-  <option value="2022">2022</option>
-  <option value="2021">2021</option>
-</select>
+    <select id="year-filter">
+      <option value="all" selected>全部</option>
+      <option value="2025">2025</option>
+      <option value="2024">2024</option>
+      <option value="2023">2023</option>
+      <option value="2022">2022</option>
+      <option value="2021">2021</option>
+    </select>
 
     <p class="small">
       Googleスプレッドシートの単語データを使った4択クイズです。<br />
@@ -90,4 +95,5 @@
 
   <script src="script.js"></script>
 </body>
+
 </html>
