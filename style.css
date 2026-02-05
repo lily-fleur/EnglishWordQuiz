@@ -37,9 +37,14 @@ body {
     sans-serif;
   background: var(--bg-gradient);
   color: var(--text-main);
+
+  /* ここを修正 */
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;        /* ← 縦並びにする */
+  justify-content: flex-start;   /* ← 上から並べる */
+  align-items: center;           /* ← 横方向だけ中央寄せ */
+
+  min-height: 100vh;
   padding: 16px;
 }
 
@@ -53,14 +58,18 @@ body > * {
    ========================= */
 
 h1 {
-  margin: 8px auto 16px;
-  text-align: center;
-  font-size: 1.4rem;
+  margin: 8px auto 12px;
+  max-width: 480px;        /* カードと同じ幅 */
+  width: 100%;
+  text-align: left;
+
+  font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+
   color: #ffffff;
-  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.8);
+  opacity: 0.95;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
 }
 
 /* =========================
@@ -76,6 +85,7 @@ h1 {
   box-shadow: var(--shadow-soft);
   border: 1px solid var(--border-subtle);
   backdrop-filter: blur(18px);
+  /* margin-top: 72px; ← これ削除 */
 }
 
 /* =========================
