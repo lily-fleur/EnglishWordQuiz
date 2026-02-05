@@ -1,178 +1,401 @@
-* {
+/* =========================
+   全体レイアウト
+   ========================= */
+
+:root {
+  --bg-gradient: radial-gradient(circle at top, #1b2940 0, #050814 55%, #020308 100%);
+  --card-bg: rgba(15, 24, 40, 0.96);
+  --accent: #3fa9ff;
+  --accent-soft: rgba(63, 169, 255, 0.15);
+  --accent-strong: #2cd5c4;
+  --danger: #ff5573;
+  --text-main: #f5f7ff;
+  --text-sub: #96a0c6;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --shadow-soft: 0 24px 50px rgba(0, 0, 0, 0.6);
+  --transition-fast: 0.15s ease-out;
+  --transition-med: 0.25s ease-out;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html,
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   margin: 0;
-  padding: 16px;
-  background: #f5f5f5;
+  padding: 0;
+  height: 100%;
 }
 
-h1 {
-  font-size: 1.4rem;
-  text-align: center;
-  margin-top: 0;
-  margin-bottom: 16px;
+body {
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-main);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
 }
+
+/* 小さめ画面でも中央寄せしすぎないよう max-width 指定 */
+body > * {
+  width: 100%;
+}
+
+/* =========================
+   見出し
+   ========================= */
+
+h1 {
+  margin: 8px auto 16px;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.8);
+}
+
+/* =========================
+   カード（各画面の箱）
+   ========================= */
 
 .card {
   max-width: 480px;
   margin: 0 auto;
-  padding: 16px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 20px 18px 18px;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(18px);
 }
+
+/* =========================
+   ホーム画面
+   ========================= */
+
+p {
+  margin: 10px 0;
+}
+
+.small {
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+
+/* ラジオボタンを pill 風に */
 
 .mode-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .mode-radio {
   flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 0.9rem;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
 }
 
-.mode-radio input {
-  margin: 0;
+.mode-radio input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
+
+.mode-radio span {
+  display: block;
+  padding: 10px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  font-size: 0.9rem;
+  text-align: center;
+  color: var(--text-sub);
+  background: rgba(9, 15, 30, 0.9);
+  transition: background var(--transition-med), border-color var(--transition-med),
+    color var(--transition-med), transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.mode-radio input[type="radio"]:checked + span {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-color: transparent;
+  color: #020308;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(40, 190, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+/* セレクトボックス */
 
 select {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  margin-bottom: 8px;
-}
-
-.small {
-  font-size: 0.8rem;
-  color: #555;
-}
-
-button {
+  margin-top: 4px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(9, 16, 32, 0.9);
+  color: var(--text-main);
   font-size: 0.95rem;
-  padding: 10px 16px;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 10px, calc(100% - 9px) 10px;
+  background-size: 7px 7px, 7px 7px;
+  background-repeat: no-repeat;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(63, 169, 255, 0.5);
 }
 
-.primary-btn {
-  width: 100%;
-  background: #007bff;
-  color: #fff;
-}
-
-.secondary-btn {
-  background: #4caf50;
-  color: #fff;
-}
-
-.ghost-btn {
-  background: #eee;
-  color: #333;
-}
+/* =========================
+   クイズ画面
+   ========================= */
 
 .quiz-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: baseline;
+  margin-bottom: 10px;
 }
 
 .status {
   font-size: 0.9rem;
-  color: #555;
+  color: var(--accent-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
+
+/* 進捗バー */
 
 .progress {
   width: 100%;
   height: 6px;
-  background: #eee;
   border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .progress-bar {
   height: 100%;
-  width: 0%;
-  background: #007bff;
-  transition: width 0.2s;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.25s ease-out;
 }
 
+/* 問題文 */
+
 .question-block {
-  margin-bottom: 12px;
+  padding: 14px 12px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    135deg,
+    rgba(40, 54, 100, 0.85),
+    rgba(12, 20, 46, 0.85)
+  );
+  border: 1px solid rgba(100, 140, 255, 0.4);
+  margin-bottom: 16px;
 }
 
 .question-text {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
+/* 選択肢 */
+
 .choices {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
 .choice-btn {
   width: 100%;
+  padding: 11px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(8, 13, 26, 0.95);
+  color: var(--text-main);
+  font-size: 1rem;
   text-align: left;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-  background: #fafafa;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    transform var(--transition-fast), box-shadow var(--transition-fast),
+    color var(--transition-fast);
 }
 
+.choice-btn:hover:not(:disabled) {
+  background: rgba(18, 30, 60, 0.98);
+  border-color: rgba(120, 150, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* 正解・不正解 */
+
 .choice-btn.correct {
-  background: #c8f7c5;
-  border-color: #4caf50;
+  background: rgba(44, 213, 196, 0.15);
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
 }
 
 .choice-btn.wrong {
-  background: #ffd2d2;
-  border-color: #f44336;
+  background: rgba(255, 85, 115, 0.1);
+  border-color: var(--danger);
+  color: #ff92a7;
 }
 
+.choice-btn:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* フィードバック */
+
 .feedback {
-  min-height: 1.5em;
-  font-size: 1rem;
-  text-align: center;
+  min-height: 24px;
+  font-size: 0.95rem;
   margin-bottom: 12px;
 }
 
-.next-btn {
+/* =========================
+   ボタン共通
+   ========================= */
+
+button {
+  font-family: inherit;
+}
+
+.primary-btn,
+.next-btn,
+.secondary-btn,
+.ghost-btn {
   width: 100%;
-  background: #007bff;
-  color: #fff;
+  padding: 11px 10px;
+  border-radius: 999px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast),
+    transform var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* メインボタン */
+
+.primary-btn,
+.next-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #020308;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+
+.primary-btn:hover,
+.next-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6);
+}
+
+.primary-btn:disabled,
+.next-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* セカンダリ */
+
+.secondary-btn {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid rgba(63, 169, 255, 0.4);
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: rgba(63, 169, 255, 0.22);
+}
+
+.secondary-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ゴースト */
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-sub);
+}
+
+.ghost-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* =========================
+   結果画面
+   ========================= */
+
+#screen-result h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#result-summary {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+#result-detail {
+  font-size: 0.9rem;
+  color: var(--text-sub);
+  margin-bottom: 16px;
 }
 
 .result-buttons {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 12px;
 }
 
-@media (min-width: 520px) {
-  .choices {
-    grid-template-columns: 1fr 1fr;
+/* =========================
+   レスポンシブ微調整
+   ========================= */
+
+@media (min-width: 480px) {
+  body {
+    align-items: center;
+  }
+
+  .card {
+    padding: 24px 22px 22px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
   }
 }
