@@ -1,90 +1,359 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>英単語 4択クイズ</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <h1>英単語 4択クイズ</h1>
+// =======================================
+//  Googleスプレッドシートの CSV URL
+//  -------------------------------------
+//  1. シートの1行目に「en,ja,year」と書く
+//  2. ファイル → 共有 → ウェブに公開 → CSV を選ぶ
+//  3. 出てきた URL を下の CSV_URL に貼る
+// =======================================
 
-  <!-- ホーム画面 -->
-  <section id="screen-home" class="card">
-    <p>モードをえらんでね：</p>
-    <div class="mode-row">
-      <label class="mode-radio">
-        <input type="radio" name="mode" value="en-ja" checked />
-        <span>英語 → 日本語</span>
-      </label>
-      <label class="mode-radio">
-        <input type="radio" name="mode" value="ja-en" />
-        <span>日本語 → 英語</span>
-      </label>
-    </div>
+const CSV_URL =
+  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
 
-    <p>何問やる？</p>
-    <select id="question-count">
-      <option value="5">5問</option>
-      <option value="10" selected>10問</option>
-      <option value="20">20問</option>
-      <option value="all">全部</option>
-    </select>
+// =============================
+//  グローバル状態
+// =============================
 
-    <p>年度</p>
-<select id="year-filter">
-  <option value="all" selected>全部</option>
-  <option value="2022">2022</option>
-  <option value="2021">2021</option>
-  <option value="2020">2020</option>
-</select>
+let WORDS = [];            // 全単語
+let sessionWords = [];     // 今回の出題リスト
+let wrongWords = [];       // 間違えた単語リスト
+let lastSettings = null;   // { mode, year, count }
+let currentIndex = 0;
+let correctCount = 0;
+let hasAnswered = false;
+let currentMode = "en-ja";       // "en-ja" or "ja-en"
+let currentSessionType = "normal"; // "normal" or "wrong";
 
-    <p class="small">
-      Googleスプレッドシートの単語データを使った4択クイズです。<br />
-      モードやレベルを変えて繰り返し練習してね。
-    </p>
+// =============================
+//  CSV パーサー（超シンプル版）
+//  ※カンマを含むテキストは想定しない
+// =============================
 
-    <button id="start-btn" class="primary-btn">スタート ▶</button>
-  </section>
+function parseCSV(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 
-  <!-- クイズ画面 -->
-  <section id="screen-quiz" class="card" style="display:none;">
-    <div class="quiz-header">
-      <div id="status" class="status"></div>
-    </div>
+  if (lines.length < 2) return [];
 
-    <div class="progress">
-      <div id="progress-bar" class="progress-bar"></div>
-    </div>
+  const headers = lines[0].split(",").map((h) => h.trim());
+  const rows = [];
 
-    <div class="question-block">
-      <div id="question-text" class="question-text">読み込み中...</div>
-    </div>
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = (cols[idx] || "").trim();
+    });
+    rows.push(obj);
+  }
+  return rows;
+}
 
-    <div id="choices" class="choices">
-      <!-- JSでボタン4つ作る -->
-    </div>
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-    <div id="feedback" class="feedback"></div>
+// スプレッドシート1行分 → アプリ内部形式
+function normalizeRow(row, idx) {
+  return {
+    id: idx,                       // 一意なID
+    en: row.en || "",              // 英単語
+    ja: row.ja || "",              // 日本語
+    year: row.year || row.Year || "" // 年度（"2022" など）
+  };
+}
 
-    <button id="next-btn" class="next-btn" disabled>次の問題 ▶</button>
-  </section>
+// =============================
+//  単語データ読み込み
+// =============================
 
-  <!-- 結果画面 -->
-  <section id="screen-result" class="card" style="display:none;">
-    <h2>結果</h2>
-    <p id="result-summary"></p>
-    <p id="result-detail"></p>
+async function loadWordsFromSheet() {
+  const res = await fetch(CSV_URL);
+  if (!res.ok) throw new Error("HTTP error: " + res.status);
+  const text = await res.text();
+  console.log("スプレッドシートからCSV取得成功");
+  return parseCSV(text);
+}
 
-    <div class="result-buttons">
-      <button id="retry-btn" class="primary-btn">同じ条件でもう一度 🔁</button>
-      <button id="retry-wrong-btn" class="secondary-btn" disabled>
-        間違えた問題だけもう一度
-      </button>
-      <button id="back-home-btn" class="ghost-btn">ホームに戻る ⏮</button>
-    </div>
-  </section>
+// =============================
+//  起動処理
+// =============================
 
-  <script src="script.js"></script>
-</body>
-</html>
+window.addEventListener("load", async () => {
+  // ---- DOM ----
+  const screenHome = document.getElementById("screen-home");
+  const screenQuiz = document.getElementById("screen-quiz");
+  const screenResult = document.getElementById("screen-result");
+
+  const startBtn = document.getElementById("start-btn");
+  const nextBtn = document.getElementById("next-btn");
+  const retryBtn = document.getElementById("retry-btn");
+  const retryWrongBtn = document.getElementById("retry-wrong-btn");
+  const backHomeBtn = document.getElementById("back-home-btn");
+
+  const questionCountSelect = document.getElementById("question-count");
+  const yearSelect = document.getElementById("year-filter");
+
+  const statusEl = document.getElementById("status");
+  const questionEl = document.getElementById("question-text");
+  const choicesEl = document.getElementById("choices");
+  const feedbackEl = document.getElementById("feedback");
+  const progressBarEl = document.getElementById("progress-bar");
+
+  const resultSummaryEl = document.getElementById("result-summary");
+  const resultDetailEl = document.getElementById("result-detail");
+
+  // ---- 単語ロード ----
+  try {
+    const rawRows = await loadWordsFromSheet();
+    WORDS = rawRows
+      .map(normalizeRow)
+      .filter((w) => w.en && w.ja); // en / ja 両方入っているものだけ
+
+    if (!WORDS.length) {
+      alert("単語データが空です。スプレッドシートの内容を確認してください。");
+      return;
+    }
+
+    console.log("読み込んだ単語数:", WORDS.length);
+  } catch (e) {
+    alert("単語データの読み込みに失敗しました。");
+    console.error(e);
+    return;
+  }
+
+  // =============================
+  //  画面制御
+  // =============================
+
+  function showScreen(name) {
+    screenHome.style.display = name === "home" ? "block" : "none";
+    screenQuiz.style.display = name === "quiz" ? "block" : "none";
+    screenResult.style.display = name === "result" ? "block" : "none";
+  }
+
+  function updateStatusAndProgress() {
+    const total = sessionWords.length || 1;
+    statusEl.textContent = `第 ${currentIndex + 1} 問 / 全 ${total} 問`;
+
+    const rate = Math.min(currentIndex / total, 1);
+    progressBarEl.style.width = `${rate * 100}%`;
+  }
+
+  // =============================
+  //  クイズ処理
+  // =============================
+
+  function buildChoiceButton(text, isCorrect, word) {
+    const btn = document.createElement("button");
+    btn.className = "choice-btn";
+    btn.textContent = text;
+
+    btn.addEventListener("click", () => {
+      if (hasAnswered) return;
+      hasAnswered = true;
+
+      const buttons = choicesEl.querySelectorAll("button");
+      buttons.forEach((b) => (b.disabled = true));
+
+      if (isCorrect) {
+        correctCount++;
+        feedbackEl.textContent = "⭕ 正解！";
+        btn.classList.add("correct");
+      } else {
+        feedbackEl.textContent = "❌ 不正解";
+        btn.classList.add("wrong");
+
+        // 正解のボタンをハイライト
+        buttons.forEach((b) => {
+          if (b.dataset.correct === "1") b.classList.add("correct");
+        });
+
+        // 間違えた問題を保存（同じオブジェクト参照がなければ追加）
+        if (!wrongWords.includes(word)) {
+          wrongWords.push(word);
+        }
+      }
+
+      // 間違えた問題が一つでもあればボタン有効化
+      if (wrongWords.length > 0) {
+        retryWrongBtn.disabled = false;
+      }
+
+      nextBtn.disabled = false;
+    });
+
+    if (isCorrect) btn.dataset.correct = "1";
+    return btn;
+  }
+
+  function showQuestion() {
+    if (currentIndex >= sessionWords.length) {
+      endSession();
+      return;
+    }
+
+    const word = sessionWords[currentIndex];
+    hasAnswered = false;
+    feedbackEl.textContent = "";
+    choicesEl.innerHTML = "";
+    nextBtn.disabled = true;
+
+    const modeInput = document.querySelector('input[name="mode"]:checked');
+    currentMode = modeInput ? modeInput.value : "en-ja";
+
+    let questionText, correctAnswer, field;
+
+    if (currentMode === "en-ja") {
+      questionText = word.en;
+      correctAnswer = word.ja;
+      field = "ja";
+    } else {
+      questionText = word.ja;
+      correctAnswer = word.en;
+      field = "en";
+    }
+
+    questionEl.textContent = questionText;
+
+    // 他の単語からダミー選択肢を作る
+    const others = shuffle(
+      WORDS.filter((w) => w.id !== word.id && w[field])
+    ).slice(0, 3);
+
+    const options = shuffle([correctAnswer].concat(others.map((w) => w[field])));
+
+    options.forEach((opt) => {
+      const isCorrect = opt === correctAnswer;
+      const btn = buildChoiceButton(opt, isCorrect, word);
+      choicesEl.appendChild(btn);
+    });
+
+    updateStatusAndProgress();
+  }
+
+  function endSession() {
+    const total = sessionWords.length || 0;
+    const percent =
+      total === 0 ? 0 : ((correctCount / total) * 100).toFixed(1);
+
+    resultSummaryEl.textContent =
+      total === 0
+        ? "出題された問題がありませんでした。"
+        : `正解数 ${correctCount} / ${total}（${percent}%）`;
+
+    if (total === 0) {
+      resultDetailEl.textContent = "条件を変えてもう一度やってみよう。";
+    } else if (percent === "100.0") {
+      if (currentSessionType === "wrong") {
+        resultDetailEl.textContent = "前に間違えた問題は全部解き直せたよ👍";
+      } else {
+        resultDetailEl.textContent = "全問正解！🎉 その調子！";
+      }
+    } else {
+      resultDetailEl.textContent =
+        "間違えた問題だけ復習したいときは「間違えた問題だけもう一度」を押してね。";
+    }
+
+    // 進捗バーを100%に
+    progressBarEl.style.width = "100%";
+
+    showScreen("result");
+  }
+
+  function startNormalSession(settings) {
+    let mode, year, count;
+
+    currentSessionType = "normal";
+    wrongWords = []; // 新しい通常回ではリセット
+    retryWrongBtn.disabled = true;
+
+    if (!settings) {
+      const modeInput = document.querySelector('input[name="mode"]:checked');
+      mode = modeInput ? modeInput.value : "en-ja";
+      year = yearSelect ? yearSelect.value : "all";
+      count = questionCountSelect ? questionCountSelect.value : "all";
+      lastSettings = { mode, year, count };
+    } else {
+      ({ mode, year, count } = settings);
+    }
+
+    // フィルタ
+    let pool = WORDS.slice();
+    if (yearSelect && year !== "all") {
+      pool = pool.filter((w) => (w.year || "") === year);
+    }
+
+    if (!pool.length) {
+      alert("その年度の単語がありません。年度の条件を変えてください。");
+      return;
+    }
+
+    const num =
+      count === "all" ? pool.length : Math.min(parseInt(count, 10), pool.length);
+
+    sessionWords = shuffle(pool).slice(0, num);
+    currentIndex = 0;
+    correctCount = 0;
+
+    // 進捗バー初期化
+    progressBarEl.style.width = "0%";
+
+    showScreen("quiz");
+    showQuestion();
+  }
+
+  function startWrongSession() {
+    if (!wrongWords.length) {
+      alert("まだ間違えた問題がありません。まずは普通に解いてみてください。");
+      return;
+    }
+
+    currentSessionType = "wrong";
+
+    sessionWords = shuffle(wrongWords.slice()); // コピーしてシャッフル
+    currentIndex = 0;
+    correctCount = 0;
+
+    progressBarEl.style.width = "0%";
+
+    showScreen("quiz");
+    showQuestion();
+  }
+
+  // =============================
+  //  イベント
+  // =============================
+
+  startBtn.onclick = () => startNormalSession(null);
+
+  nextBtn.onclick = () => {
+    currentIndex++;
+    showQuestion();
+  };
+
+  retryBtn.onclick = () => {
+    if (lastSettings) {
+      startNormalSession(lastSettings);
+    } else {
+      startNormalSession(null);
+    }
+  };
+
+  retryWrongBtn.onclick = () => {
+    startWrongSession();
+  };
+
+  backHomeBtn.onclick = () => {
+    showScreen("home");
+  };
+
+  // 初期画面
+  showScreen("home");
+});
