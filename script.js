@@ -13,15 +13,66 @@ const CSV_URL =
 //  グローバル状態
 // =============================
 
-let WORDS = [];            // 全単語
-let sessionWords = [];     // 今回の出題リスト
-let wrongWords = [];       // 間違えた単語リスト
-let lastSettings = null;   // { mode, year, count }
+let WORDS = [];              // 全単語
+let sessionWords = [];       // 今回の出題リスト
+let wrongWords = [];         // 間違えた単語リスト
+let lastSettings = null;     // { mode, year, count }
 let currentIndex = 0;
 let correctCount = 0;
 let hasAnswered = false;
-let currentMode = "en-ja";       // "en-ja" or "ja-en"
-let currentSessionType = "normal"; // "normal" or "wrong";
+let currentMode = "en-ja";          // "en-ja" or "ja-en"
+let currentSessionType = "normal";  // "normal" or "wrong"
+
+// ★ ここから【1】単語ごとの成績を保存するための状態
+let STATS = {};                      // { [id]: { seen, correct, wrong, lastAnsweredAt } }
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+// ---- 成績のロード／セーブ ----
+function loadStats() {
+  try {
+    const raw = localStorage.getItem("wordStats");
+    STATS = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.warn("stats の読み込みに失敗:", e);
+    STATS = {};
+  }
+}
+
+function saveStats() {
+  try {
+    localStorage.setItem("wordStats", JSON.stringify(STATS));
+  } catch (e) {
+    console.warn("stats の保存に失敗:", e);
+  }
+}
+
+// 単語1件の成績を更新
+function updateStats(word, isCorrect) {
+  const id = word.id;
+  if (!STATS[id]) {
+    STATS[id] = { seen: 0, correct: 0, wrong: 0, lastAnsweredAt: null };
+  }
+  const s = STATS[id];
+  s.seen++;
+  if (isCorrect) s.correct++;
+  else s.wrong++;
+  s.lastAnsweredAt = Date.now();
+  saveStats();
+}
+
+// ★ ここから【2】「苦手・久しぶり」ほど優先度を上げるスコア
+function priorityScore(word) {
+  const s = STATS[word.id];
+  // 一度も出題されていない単語は最優先
+  if (!s || !s.seen) return 1000;
+
+  const accuracy = s.correct / s.seen; // 0〜1（高いほど得意）
+  const daysSince = (Date.now() - (s.lastAnsweredAt || 0)) / DAY_MS;
+
+  // 正答率が低い + しばらく解いてないほどスコア↑
+  // （値は適当でOK、感覚的に効けば十分）
+  return (1 - accuracy) * 10 + Math.min(daysSince, 10);
+}
 
 // =============================
 //  CSV パーサー（超シンプル版）
@@ -62,9 +113,9 @@ function shuffle(arr) {
 // スプレッドシート1行分 → アプリ内部形式
 function normalizeRow(row, idx) {
   return {
-    id: idx,                       // 一意なID
-    en: row.en || "",              // 英単語
-    ja: row.ja || "",              // 日本語
+    id: idx,                         // 一意なID
+    en: row.en || "",                // 英単語
+    ja: row.ja || "",                // 日本語
     year: row.year || row.Year || "" // 年度（"2022" など）
   };
 }
@@ -86,6 +137,9 @@ async function loadWordsFromSheet() {
 // =============================
 
 window.addEventListener("load", async () => {
+  // ★ まず保存済みの成績をロード
+  loadStats();
+
   // ---- DOM ----
   const screenHome = document.getElementById("screen-home");
   const screenQuiz = document.getElementById("screen-quiz");
@@ -180,6 +234,9 @@ window.addEventListener("load", async () => {
           wrongWords.push(word);
         }
       }
+
+      // ★ ここで成績を更新
+      updateStats(word, isCorrect);
 
       // 間違えた問題が一つでもあればボタン有効化
       if (wrongWords.length > 0) {
@@ -284,7 +341,7 @@ window.addEventListener("load", async () => {
       ({ mode, year, count } = settings);
     }
 
-    // フィルタ
+    // フィルタ（年度）
     let pool = WORDS.slice();
     if (yearSelect && year !== "all") {
       pool = pool.filter((w) => (w.year || "") === year);
@@ -298,7 +355,14 @@ window.addEventListener("load", async () => {
     const num =
       count === "all" ? pool.length : Math.min(parseInt(count, 10), pool.length);
 
-    sessionWords = shuffle(pool).slice(0, num);
+    // ★ 優先度スコアで並べ替え（苦手・久しぶりな単語が上に来る）
+    pool.sort((a, b) => priorityScore(b) - priorityScore(a));
+
+    // 上位から少しだけ広めに候補を取り、その中からランダムに num 件
+    const candidateCount = Math.min(pool.length, num * 2);
+    const candidates = pool.slice(0, candidateCount);
+
+    sessionWords = shuffle(candidates).slice(0, num);
     currentIndex = 0;
     correctCount = 0;
 
