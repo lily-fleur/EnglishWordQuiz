@@ -61,7 +61,7 @@ h1 {
   margin: 8px auto 12px;
   max-width: 480px;        /* カードと同じ幅 */
   width: 100%;
-  text-align: left;
+  text-align: center;
 
   font-size: 1.6rem;
   font-weight: 700;
