@@ -296,11 +296,19 @@ function buildInputQuestion(correctAnswers, word) {
   wrapper.appendChild(checkBtn);
   choicesEl.appendChild(wrapper);
 
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      checkBtn.click();
-    }
+  // Enterキー制御
+input.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+
+  e.preventDefault();
+
+  if (!hasAnswered) {
+    // まだ答えていない → 答え合わせ
+    checkBtn.click();
+  } else {
+    // すでに答えた → 次の問題へ
+    nextBtn.click();
+  }
   });
 
   checkBtn.addEventListener("click", () => {
