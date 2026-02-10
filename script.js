@@ -1,30 +1,23 @@
 // =======================================
 //  Googleスプレッドシートの CSV URL
-//  -------------------------------------
-//  1. シートの1行目に「en,ja,year」と書く
-//  2. ファイル → 共有 → ウェブに公開 → CSV を選ぶ
-//  3. 出てきた URL を下の CSV_URL に貼る
 // =======================================
-
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
 
 // =============================
 //  グローバル状態
 // =============================
-
 let WORDS = [];              // 全単語
 let sessionWords = [];       // 今回の出題リスト
 let wrongWords = [];         // 間違えた単語リスト
-let lastSettings = null;     // { mode, year, count }
+let lastSettings = null;     // { mode, year, count, qtype }
 let currentIndex = 0;
 let correctCount = 0;
 let hasAnswered = false;
 let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
-let currentStyle = "choice";        // "choice" or "input"
 
-// ★ 単語ごとの成績を保存するための状態
+// ★ 単語ごとの成績
 let STATS = {};                     // { [id]: { seen, correct, wrong, lastAnsweredAt } }
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -47,7 +40,6 @@ function saveStats() {
   }
 }
 
-// 単語1件の成績を更新
 function updateStats(word, isCorrect) {
   const id = word.id;
   if (!STATS[id]) {
@@ -64,21 +56,16 @@ function updateStats(word, isCorrect) {
 // 「苦手・久しぶり」ほど優先度を上げるスコア
 function priorityScore(word) {
   const s = STATS[word.id];
-  // 一度も出題されていない単語は最優先
-  if (!s || !s.seen) return 1000;
+  if (!s || !s.seen) return 1000; // 一度も出てないものは最優先
 
   const accuracy = s.correct / s.seen; // 0〜1（高いほど得意）
   const daysSince = (Date.now() - (s.lastAnsweredAt || 0)) / DAY_MS;
-
-  // 正答率が低い + しばらく解いてないほどスコア↑
   return (1 - accuracy) * 10 + Math.min(daysSince, 10);
 }
 
 // =============================
-//  CSV パーサー（超シンプル版）
-//  ※カンマを含むテキストは想定しない
+//  CSV パーサー
 // =============================
-
 function parseCSV(text) {
   const lines = text
     .split(/\r?\n/)
@@ -114,19 +101,18 @@ function normalizeRow(row, idx) {
   return {
     id: idx,
     en: row.en || "",
-    // ja_main があれば優先。なければ旧 ja を fallback
+    // ja_main があれば優先。なければ ja
     ja: row.ja_main || row.ja || "",
     jaSub: row.ja_sub || "",
     year: row.year || row.Year || "",
     kind: row.kind || "",
-    inputOk: row.input_ok === "1" || row.input_ok === 1
+    inputOk: row.input_ok === "1" || row.input_ok === 1,
   };
 }
 
 // =============================
 //  単語データ読み込み
 // =============================
-
 async function loadWordsFromSheet() {
   const res = await fetch(CSV_URL);
   if (!res.ok) throw new Error("HTTP error: " + res.status);
@@ -138,40 +124,38 @@ async function loadWordsFromSheet() {
 // =============================
 //  起動処理
 // =============================
-
 window.addEventListener("load", async () => {
-  // 保存済みの成績をロード
   loadStats();
 
   // ---- DOM ----
-  const screenHome = document.getElementById("screen-home");
-  const screenQuiz = document.getElementById("screen-quiz");
+  const screenHome   = document.getElementById("screen-home");
+  const screenQuiz   = document.getElementById("screen-quiz");
   const screenResult = document.getElementById("screen-result");
 
-  const startBtn = document.getElementById("start-btn");
-  const nextBtn = document.getElementById("next-btn");
-  const retryBtn = document.getElementById("retry-btn");
+  const startBtn      = document.getElementById("start-btn");
+  const nextBtn       = document.getElementById("next-btn");
+  const retryBtn      = document.getElementById("retry-btn");
   const retryWrongBtn = document.getElementById("retry-wrong-btn");
-  const backHomeBtn = document.getElementById("back-home-btn");
+  const backHomeBtn   = document.getElementById("back-home-btn");
 
   const questionCountSelect = document.getElementById("question-count");
-  const yearSelect = document.getElementById("year-filter");
+  const yearSelect          = document.getElementById("year-filter");
 
-  const statusEl = document.getElementById("status");
-  const questionEl = document.getElementById("question-text");
-  const choicesEl = document.getElementById("choices");
-  const feedbackEl = document.getElementById("feedback");
+  const statusEl      = document.getElementById("status");
+  const questionEl    = document.getElementById("question-text");
+  const choicesEl     = document.getElementById("choices");
+  const feedbackEl    = document.getElementById("feedback");
   const progressBarEl = document.getElementById("progress-bar");
 
   const resultSummaryEl = document.getElementById("result-summary");
-  const resultDetailEl = document.getElementById("result-detail");
+  const resultDetailEl  = document.getElementById("result-detail");
 
   // ---- 単語ロード ----
   try {
     const rawRows = await loadWordsFromSheet();
     WORDS = rawRows
       .map(normalizeRow)
-      .filter((w) => w.en && w.ja); // en / ja 両方入っているものだけ
+      .filter((w) => w.en && w.ja);
 
     if (!WORDS.length) {
       alert("単語データが空です。スプレッドシートの内容を確認してください。");
@@ -188,10 +172,9 @@ window.addEventListener("load", async () => {
   // =============================
   //  画面制御
   // =============================
-
   function showScreen(name) {
-    screenHome.style.display = name === "home" ? "block" : "none";
-    screenQuiz.style.display = name === "quiz" ? "block" : "none";
+    screenHome.style.display   = name === "home"   ? "block" : "none";
+    screenQuiz.style.display   = name === "quiz"   ? "block" : "none";
     screenResult.style.display = name === "result" ? "block" : "none";
   }
 
@@ -207,7 +190,7 @@ window.addEventListener("load", async () => {
   //  クイズ処理
   // =============================
 
-  // 4択用ボタン
+  // ---- 4択ボタン ----
   function buildChoiceButton(text, isCorrect, word) {
     const btn = document.createElement("button");
     btn.className = "choice-btn";
@@ -228,18 +211,15 @@ window.addEventListener("load", async () => {
         feedbackEl.textContent = "❌ 不正解";
         btn.classList.add("wrong");
 
-        // 正解のボタンをハイライト
         buttons.forEach((b) => {
           if (b.dataset.correct === "1") b.classList.add("correct");
         });
 
-        // 間違えた問題を保存
         if (!wrongWords.includes(word)) {
           wrongWords.push(word);
         }
       }
 
-      // 成績更新
       updateStats(word, isCorrect);
 
       if (wrongWords.length > 0) {
@@ -253,163 +233,166 @@ window.addEventListener("load", async () => {
     return btn;
   }
 
-  // 記述用の問題ビュー
+  // ---- 記述系 ----
   function normalizeAnswer(str) {
-    return str
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+    return str.toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-function isCorrectInput(userInput, answers) {
-  const u = normalizeAnswer(userInput);
-  if (!u) return false;
+  // answers: ["本質的要素", "本質的な要素"] みたいな配列
+  function isCorrectInput(userInput, answers) {
+    const u = normalizeAnswer(userInput);
+    if (!u) return false;
 
-  // answers は ["本質的要素", "本質的な要素"] みたいな配列を想定
-  return answers
-    .map((s) => normalizeAnswer(s))
-    .some((ans) => ans && ans === u);
-}
-
-function buildInputQuestion(correctAnswers, word) {
-  const wrapper = document.createElement("div");
-  wrapper.style.display = "flex";
-  wrapper.style.gap = "8px";
-  wrapper.style.marginBottom = "8px";
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "ここに入力";
-  input.style.flex = "1";
-  input.style.padding = "8px 10px";
-  input.style.borderRadius = "12px";
-  input.style.border = "1px solid rgba(255,255,255,0.12)";
-  input.style.background = "rgba(8,13,26,0.95)";
-  input.style.color = "#f5f7ff";
-
-  const checkBtn = document.createElement("button");
-  checkBtn.textContent = "答え合わせ";
-  checkBtn.className = "secondary-btn answer-btn";
-  checkBtn.style.flex = "0 0 auto";
-
-  wrapper.appendChild(input);
-  wrapper.appendChild(checkBtn);
-  choicesEl.appendChild(wrapper);
-
-  // Enterキー制御
-input.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter") return;
-
-  e.preventDefault();
-
-  if (!hasAnswered) {
-    // まだ答えていない → 答え合わせ
-    checkBtn.click();
-  } else {
-    // すでに答えた → 次の問題へ
-    nextBtn.click();
+    return answers
+      .map((s) => normalizeAnswer(s))
+      .some((ans) => ans && ans === u);
   }
-  });
 
-  checkBtn.addEventListener("click", () => {
-    if (hasAnswered) return;
-    hasAnswered = true;
+  function buildInputQuestion(correctAnswers, word) {
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "flex";
+    wrapper.style.gap = "8px";
+    wrapper.style.marginBottom = "8px";
 
-    const user = input.value;
-    const ok = isCorrectInput(user, correctAnswers);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "ここに入力";
+    input.style.flex = "1";
+    input.style.padding = "8px 10px";
+    input.style.borderRadius = "12px";
+    input.style.border = "1px solid rgba(255,255,255,0.12)";
+    input.style.background = "rgba(8,13,26,0.95)";
+    input.style.color = "#f5f7ff";
 
-    const answerLabel = correctAnswers.join(" / ");
+    const checkBtn = document.createElement("button");
+    checkBtn.textContent = "答え合わせ";
+    checkBtn.className = "secondary-btn answer-btn";
+    checkBtn.style.flex = "0 0 auto";
 
-    if (ok) {
-      correctCount++;
-      feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
-    } else {
-      feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
-      if (!wrongWords.includes(word)) {
-        wrongWords.push(word);
+    wrapper.appendChild(input);
+    wrapper.appendChild(checkBtn);
+    choicesEl.appendChild(wrapper);
+
+    // Enterキー制御
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+
+      if (!hasAnswered) {
+        // まだ答えていない → 答え合わせ
+        checkBtn.click();
+      } else {
+        // すでに答えた → 次の問題へ
+        nextBtn.click();
       }
-    }
-
-    updateStats(word, ok);
-
-    if (wrongWords.length > 0) {
-      retryWrongBtn.disabled = false;
-    }
-
-    input.disabled = true;
-    checkBtn.disabled = true;
-    nextBtn.disabled = false;
-  });
-
-  setTimeout(() => input.focus(), 0);
-}
-
-function showQuestion() {
-  if (currentIndex >= sessionWords.length) {
-    endSession();
-    return;
-  }
-
-  const word = sessionWords[currentIndex];
-  hasAnswered = false;
-  feedbackEl.textContent = "";
-  choicesEl.innerHTML = "";
-  nextBtn.disabled = true;
-
-  // モード
-  const modeInput = document.querySelector('input[name="mode"]:checked');
-  currentMode = modeInput ? modeInput.value : "en-ja";
-
-  // 出題形式
-  const styleInput = document.querySelector('input[name="qtype"]:checked');
-  const qtype = styleInput ? styleInput.value : "choice"; // "choice" or "input"
-
-  let questionText;
-  let correctAnswers = []; // ★ 配列で持つ
-  let field;
-
-  if (currentMode === "en-ja") {
-    questionText = word.en;
-    // ja_main + ja_sub を両方候補にする（記述で使う）
-    correctAnswers = [word.ja, word.jaSub].filter(Boolean);
-    field = "ja";
-  } else {
-    questionText = word.ja;
-    correctAnswers = [word.en]; // 英語側は基本1つでOK
-    field = "en";
-  }
-
-  questionEl.textContent = questionText;
-
-  if (qtype === "input") {
-    // ★ 記述問題モード：複数候補すべて正解扱い
-    buildInputQuestion(correctAnswers, word);
-  } else {
-    // ★ 4択モード：メインの意味だけを使う（最初の1個）
-    const correctAnswer = correctAnswers[0];
-
-    const others = shuffle(
-      WORDS.filter((w) => w.id !== word.id && w[field])
-    ).slice(0, 3);
-
-    const options = shuffle(
-      [correctAnswer].concat(others.map((w) => w[field]))
-    );
-
-    options.forEach((opt) => {
-      const isCorrect = opt === correctAnswer;
-      const btn = buildChoiceButton(opt, isCorrect, word);
-      choicesEl.appendChild(btn);
     });
+
+    checkBtn.addEventListener("click", () => {
+      if (hasAnswered) return;
+      hasAnswered = true;
+
+      const user = input.value;
+      const ok = isCorrectInput(user, correctAnswers);
+      const answerLabel = correctAnswers.join(" / ");
+
+      if (ok) {
+        correctCount++;
+        feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
+      } else {
+        feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
+        if (!wrongWords.includes(word)) {
+          wrongWords.push(word);
+        }
+      }
+
+      updateStats(word, ok);
+
+      if (wrongWords.length > 0) {
+        retryWrongBtn.disabled = false;
+      }
+
+      input.disabled = true;
+      checkBtn.disabled = true;
+      nextBtn.disabled = false;
+    });
+
+    setTimeout(() => input.focus(), 0);
   }
 
-  updateStatusAndProgress();
-}
+  // ---- 1問出す ----
+  function showQuestion() {
+    if (currentIndex >= sessionWords.length) {
+      endSession();
+      return;
+    }
 
+    const word = sessionWords[currentIndex];
+    hasAnswered = false;
+    feedbackEl.textContent = "";
+    choicesEl.innerHTML = "";
+    nextBtn.disabled = true;
+
+    // モード（英→日 / 日→英）
+    const modeInput = document.querySelector('input[name="mode"]:checked');
+    currentMode = modeInput ? modeInput.value : "en-ja";
+
+    // 出題形式（4択 / 記述）
+    const qtypeInput = document.querySelector('input[name="qtype"]:checked');
+    const qtype = qtypeInput ? qtypeInput.value : "choice"; // "choice" or "input"
+
+    let questionText;
+    let correctAnswers = [];
+    let field;
+
+    if (currentMode === "en-ja") {
+      // 英語を見て日本語を書く／選ぶ
+      questionText = word.en;
+      // ja_main + ja_sub の両方を記述の正解候補にする
+      correctAnswers = [word.ja, word.jaSub].filter(Boolean);
+      field = "ja";
+    } else {
+      // 日本語を見て英語を書く／選ぶ
+      questionText = word.ja;
+      correctAnswers = [word.en];
+      field = "en";
+    }
+
+    // 念のため、候補が1つもなければ落ちないように
+    if (!correctAnswers.length) {
+      correctAnswers = [currentMode === "en-ja" ? word.ja : word.en].filter(Boolean);
+    }
+
+    questionEl.textContent = questionText;
+
+    if (qtype === "input") {
+      // 記述モード：配列のどれを書いても正解
+      buildInputQuestion(correctAnswers, word);
+    } else {
+      // 4択モード：メインの意味（配列の先頭）だけを正解として使う
+      const correctAnswer = correctAnswers[0];
+
+      const others = shuffle(
+        WORDS.filter((w) => w.id !== word.id && w[field])
+      ).slice(0, 3);
+
+      const options = shuffle(
+        [correctAnswer].concat(others.map((w) => w[field]))
+      );
+
+      options.forEach((opt) => {
+        const isCorrect = opt === correctAnswer;
+        const btn = buildChoiceButton(opt, isCorrect, word);
+        choicesEl.appendChild(btn);
+      });
+    }
+
+    updateStatusAndProgress();
+  }
+
+  // ---- 終了 ----
   function endSession() {
     const total = sessionWords.length || 0;
-    const percent =
-      total === 0 ? 0 : ((correctCount / total) * 100).toFixed(1);
+    const percent = total === 0 ? 0 : ((correctCount / total) * 100).toFixed(1);
 
     resultSummaryEl.textContent =
       total === 0
@@ -433,61 +416,67 @@ function showQuestion() {
     showScreen("result");
   }
 
- function startNormalSession(settings) {
-  let mode, year, count, qtype;
+  // ---- 通常セッション開始 ----
+  function startNormalSession(settings) {
+    let mode, year, count, qtype;
 
-  currentSessionType = "normal";
-  wrongWords = [];
-  retryWrongBtn.disabled = true;
+    currentSessionType = "normal";
+    wrongWords = [];
+    retryWrongBtn.disabled = true;
 
-  if (!settings) {
-    const modeInput = document.querySelector('input[name="mode"]:checked');
-    mode = modeInput ? modeInput.value : "en-ja";
+    if (!settings) {
+      const modeInput = document.querySelector('input[name="mode"]:checked');
+      mode = modeInput ? modeInput.value : "en-ja";
 
-    const qtypeInput = document.querySelector('input[name="qtype"]:checked');
-    qtype = qtypeInput ? qtypeInput.value : "choice"; // "choice" or "input"
+      const qtypeInput = document.querySelector('input[name="qtype"]:checked');
+      qtype = qtypeInput ? qtypeInput.value : "choice";
 
-    year = yearSelect ? yearSelect.value : "all";
-    count = questionCountSelect ? questionCountSelect.value : "all";
-    lastSettings = { mode, year, count, qtype };
-  } else {
-    ({ mode, year, count, qtype } = settings);
+      year = yearSelect ? yearSelect.value : "all";
+      count = questionCountSelect ? questionCountSelect.value : "all";
+      lastSettings = { mode, year, count, qtype };
+    } else {
+      ({ mode, year, count, qtype } = settings);
+    }
+
+    // モードは今のところ pool に直接は効いてないが、念のため保持だけ
+    currentMode = mode;
+
+    // 年度フィルタ
+    let pool = WORDS.slice();
+    if (yearSelect && year !== "all") {
+      pool = pool.filter((w) => (w.year || "") === year);
+    }
+
+    // 記述モードのときだけ input_ok = 1 の単語に絞る
+    if (qtype === "input") {
+      pool = pool.filter((w) => w.inputOk);
+    }
+
+    if (!pool.length) {
+      alert("その条件に合う単語がありません。年度や出題形式を変えてみてください。");
+      return;
+    }
+
+    const num =
+      count === "all"
+        ? pool.length
+        : Math.min(parseInt(count, 10), pool.length);
+
+    // 苦手単語優先
+    pool.sort((a, b) => priorityScore(b) - priorityScore(a));
+    const candidateCount = Math.min(pool.length, num * 2);
+    const candidates = pool.slice(0, candidateCount);
+
+    sessionWords = shuffle(candidates).slice(0, num);
+    currentIndex = 0;
+    correctCount = 0;
+
+    progressBarEl.style.width = "0%";
+    showScreen("quiz");
+    showQuestion();
   }
 
-  // 年度フィルタ
-  let pool = WORDS.slice();
-  if (yearSelect && year !== "all") {
-    pool = pool.filter(w => (w.year || "") === year);
-  }
-
-  // ★ 記述モードのときだけ input_ok = true だけに絞る
-  if (qtype === "input") {
-    pool = pool.filter(w => w.inputOk);
-  }
-
-  if (!pool.length) {
-    alert("その条件に合う単語がありません。年度や出題形式を変えてみてください。");
-    return;
-  }
-
-  const num = count === "all"
-    ? pool.length
-    : Math.min(parseInt(count, 10), pool.length);
-
-  // 苦手単語優先ロジックはそのまま使う
-  pool.sort((a, b) => priorityScore(b) - priorityScore(a));
-  const candidateCount = Math.min(pool.length, num * 2);
-  const candidates = pool.slice(0, candidateCount);
-
-  sessionWords = shuffle(candidates).slice(0, num);
-  currentIndex = 0;
-  correctCount = 0;
-
-  progressBarEl.style.width = "0%";
-  showScreen("quiz");
-  showQuestion();
-}
-
+  // ---- 間違えた問題だけ ----
   function startWrongSession() {
     if (!wrongWords.length) {
       alert("まだ間違えた問題がありません。まずは普通に解いてみてください。");
@@ -496,12 +485,11 @@ function showQuestion() {
 
     currentSessionType = "wrong";
 
-    sessionWords = shuffle(wrongWords.slice()); // コピーしてシャッフル
+    sessionWords = shuffle(wrongWords.slice());
     currentIndex = 0;
     correctCount = 0;
 
     progressBarEl.style.width = "0%";
-
     showScreen("quiz");
     showQuestion();
   }
@@ -509,7 +497,6 @@ function showQuestion() {
   // =============================
   //  イベント
   // =============================
-
   startBtn.onclick = () => startNormalSession(null);
 
   nextBtn.onclick = () => {
