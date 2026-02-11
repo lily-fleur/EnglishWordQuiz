@@ -178,8 +178,17 @@ select:focus {
 .quiz-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
+  align-items: center;
+}
+
+.year-badge {
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(120, 180, 255, 0.15);
+  color: #9fc7ff;
+  border: 1px solid rgba(120, 180, 255, 0.3);
+  white-space: nowrap;
 }
 
 .status {
