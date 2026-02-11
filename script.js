@@ -16,6 +16,7 @@ let correctCount = 0;
 let hasAnswered = false;
 let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
+let currentWord = null;             // 今出題している単語（発音ボタン用）
 
 // ★ 単語ごとの成績
 let STATS = {};                     // { [id]: { seen, correct, wrong, lastAnsweredAt } }
@@ -97,7 +98,6 @@ function shuffle(arr) {
   return a;
 }
 
-// スプシ1行 → 内部形式
 function normalizeRow(row, idx) {
   return {
     id: idx,
@@ -123,7 +123,7 @@ async function loadWordsFromSheet() {
 }
 
 // =============================
-//  発音（Web Speech API）
+//  音声読み上げ
 // =============================
 function speak(text, lang = "en-US") {
   if (!("speechSynthesis" in window)) return;
@@ -167,6 +167,7 @@ window.addEventListener("load", async () => {
   const resultDetailEl  = document.getElementById("result-detail");
 
   const yearBadgeEl = document.getElementById("year-badge");
+  const speakBtn    = document.getElementById("speak-btn");
 
   // ---- 単語ロード ----
   try {
@@ -345,12 +346,14 @@ window.addEventListener("load", async () => {
     }
 
     const word = sessionWords[currentIndex];
+    currentWord = word;  // 発音ボタン用に保持
+
     hasAnswered = false;
     feedbackEl.textContent = "";
     choicesEl.innerHTML = "";
     nextBtn.disabled = true;
 
-    // 年度表示バッジ
+    // 年度表示
     if (yearBadgeEl) {
       if (!word.year) {
         yearBadgeEl.textContent = "";
@@ -364,11 +367,6 @@ window.addEventListener("load", async () => {
     // モード（英→日 / 日→英）
     const modeInput = document.querySelector('input[name="mode"]:checked');
     currentMode = modeInput ? modeInput.value : "en-ja";
-
-    // ★ 英→日モードのときは英文を発音
-    if (currentMode === "en-ja") {
-      speak(word.en, "en-US");
-    }
 
     // 出題形式（4択 / 記述）
     const qtypeInput = document.querySelector('input[name="qtype"]:checked');
@@ -384,6 +382,9 @@ window.addEventListener("load", async () => {
       // ja_main + ja_sub の両方を記述の正解候補にする
       correctAnswers = [word.ja, word.jaSub].filter(Boolean);
       field = "ja";
+
+      // ★ 自動で英語を読み上げ（ブラウザによっては無視されることもある）
+      speak(word.en, "en-US");
     } else {
       // 日本語を見て英語を書く／選ぶ
       questionText = word.ja;
@@ -552,6 +553,15 @@ window.addEventListener("load", async () => {
   backHomeBtn.onclick = () => {
     showScreen("home");
   };
+
+  // 🔊 ボタン：今の単語の英語を読む
+  if (speakBtn) {
+    speakBtn.onclick = () => {
+      if (!currentWord) return;
+      // どっちのモードでも英語を読ませる
+      speak(currentWord.en, "en-US");
+    };
+  }
 
   // 初期画面
   showScreen("home");
