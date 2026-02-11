@@ -311,7 +311,7 @@ window.addEventListener("load", async () => {
         retryWrongBtn.disabled = false;
       }
 
-      input.disabled = true;
+      input.readOnly = true;
       checkBtn.disabled = true;
       nextBtn.disabled = false;
     });
