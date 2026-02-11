@@ -335,9 +335,15 @@ window.addEventListener("load", async () => {
     nextBtn.disabled = true;
 
     // 年度表示
-if (yearBadgeEl) {
-  yearBadgeEl.textContent = word.year ? `${word.year} 年度` : "";
-}
+    if (yearBadgeEl) {
+    if (!word.year) {
+    yearBadgeEl.textContent = "";
+  } else if (word.year === "other") {
+    yearBadgeEl.textContent = "その他";
+  } else {
+    yearBadgeEl.textContent = `${word.year} 年度`;
+  }
+  }
 
     // モード（英→日 / 日→英）
     const modeInput = document.querySelector('input[name="mode"]:checked');
