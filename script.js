@@ -150,6 +150,8 @@ window.addEventListener("load", async () => {
   const resultSummaryEl = document.getElementById("result-summary");
   const resultDetailEl  = document.getElementById("result-detail");
 
+  const yearBadgeEl = document.getElementById("year-badge");
+
   // ---- 単語ロード ----
   try {
     const rawRows = await loadWordsFromSheet();
@@ -331,6 +333,11 @@ window.addEventListener("load", async () => {
     feedbackEl.textContent = "";
     choicesEl.innerHTML = "";
     nextBtn.disabled = true;
+
+    // 年度表示
+if (yearBadgeEl) {
+  yearBadgeEl.textContent = word.year ? `${word.year} 年度` : "";
+}
 
     // モード（英→日 / 日→英）
     const modeInput = document.querySelector('input[name="mode"]:checked');
