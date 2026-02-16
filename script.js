@@ -18,6 +18,7 @@ let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
 let currentWord = null;             // 今出題している単語（発音ボタン用）
 let wrongWordIds = new Set();   // ★ 間違えた単語ID（重複防止）
+let currentQType = "choice"; // "choice" or "input"
 
 // ★ 単語ごとの成績
 let STATS = {};                     // { [id]: { seen, correct, wrong, lastAnsweredAt } }
@@ -374,6 +375,7 @@ window.addEventListener("load", async () => {
     // 出題形式（4択 / 記述）
     const qtypeInput = document.querySelector('input[name="qtype"]:checked');
     const qtype = qtypeInput ? qtypeInput.value : "choice"; // "choice" or "input"
+    currentQType = qtype;
 
     let questionText;
     let correctAnswers = [];
@@ -417,9 +419,10 @@ window.addEventListener("load", async () => {
         [correctAnswer].concat(others.map((w) => w[field]))
       );
 
-      options.forEach((opt) => {
+      options.forEach((opt, i) => {
         const isCorrect = opt === correctAnswer;
-        const btn = buildChoiceButton(opt, isCorrect, word);
+        const label = `${i + 1}. ${opt}`;
+        const btn = buildChoiceButton(label, isCorrect, word);
         choicesEl.appendChild(btn);
       });
     }
@@ -531,6 +534,39 @@ window.addEventListener("load", async () => {
     showScreen("quiz");
     showQuestion();
   }
+
+document.addEventListener("keydown", (e) => {
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  
+  // クイズ画面じゃないなら無視
+  if (screenQuiz.style.display !== "block") return;
+
+  // IME変換中は無視（日本語入力中の誤作動防止）
+  if (e.isComposing) return;
+
+  // Enterは「答えた後だけ」次へ（4択/記述どっちでも使える）
+  if (e.key === "Enter" && hasAnswered && !nextBtn.disabled) {
+    e.preventDefault();
+    nextBtn.click();
+    return;
+  }
+
+  // ここから下は「4択の回答前」だけに効かせる
+  if (currentQType !== "choice") return;
+  if (hasAnswered) return;
+
+  // 1〜4 で選択
+  const k = e.key;
+  if (k >= "1" && k <= "4") {
+    e.preventDefault();
+
+    const idx = Number(k) - 1;
+    const buttons = choicesEl.querySelectorAll("button.choice-btn");
+    const target = buttons[idx];
+    if (target && !target.disabled) target.click();
+  }
+});
 
   // =============================
   //  イベント
