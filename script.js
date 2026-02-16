@@ -1,4 +1,4 @@
-console.log("APP VERSION: 2026-02-16-01");
+console.log("APP VERSION: 2026-02-16-02");
 
 // =======================================
 //  Googleスプレッドシートの CSV URL
@@ -11,7 +11,13 @@ const CSV_URL =
 // =============================
 let WORDS = [];              // 全単語
 let sessionWords = [];       // 今回の出題リスト
-let wrongWords = [];         // 間違えた単語リスト
+let wrongWords = [];         // 通常セッションで間違えた単語リスト
+let wrongWordIds = new Set();// 通常セッションの間違いID（重複防止）
+
+// ★ 復習(間違いだけ)中に間違えた単語 → 次の復習対象
+let wrongWordsThisRound = [];
+let wrongWordIdsThisRound = new Set();
+
 let lastSettings = null;     // { mode, year, count, qtype }
 let currentIndex = 0;
 let correctCount = 0;
@@ -19,8 +25,7 @@ let hasAnswered = false;
 let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
 let currentWord = null;             // 今出題している単語（発音ボタン用）
-let wrongWordIds = new Set();   // ★ 間違えた単語ID（重複防止）
-let currentQType = "choice"; // "choice" or "input"
+let currentQType = "choice";        // "choice" or "input"
 
 // ★ 単語ごとの成績
 let STATS = {};                     // { [id]: { seen, correct, wrong, lastAnsweredAt } }
@@ -66,6 +71,23 @@ function priorityScore(word) {
   const accuracy = s.correct / s.seen; // 0〜1（高いほど得意）
   const daysSince = (Date.now() - (s.lastAnsweredAt || 0)) / DAY_MS;
   return (1 - accuracy) * 10 + Math.min(daysSince, 10);
+}
+
+// ★ 間違いの記録（通常セッションか復習セッションかで入れ先を変える）
+function recordWrong(word) {
+  if (currentSessionType === "wrong") {
+    // 復習中に間違えた → 次の復習対象
+    if (!wrongWordIdsThisRound.has(word.id)) {
+      wrongWordIdsThisRound.add(word.id);
+      wrongWordsThisRound.push(word);
+    }
+  } else {
+    // 通常中に間違えた → 復習対象
+    if (!wrongWordIds.has(word.id)) {
+      wrongWordIds.add(word.id);
+      wrongWords.push(word);
+    }
+  }
 }
 
 // =============================
@@ -217,21 +239,24 @@ window.addEventListener("load", async () => {
   function buildChoiceButton(text, isCorrect, word) {
     const btn = document.createElement("button");
     btn.className = "choice-btn";
-  const numberSpan = document.createElement("span");
-  numberSpan.className = "choice-number";
 
-  const textSpan = document.createElement("span");
-  textSpan.className = "choice-text";
-const firstSpace = text.indexOf(" ");
-const num = firstSpace === -1 ? "" : text.slice(0, firstSpace);
-const body = firstSpace === -1 ? text : text.slice(firstSpace + 1);
+    // 表示を「番号」と「本文」に分割（安全版）
+    const numberSpan = document.createElement("span");
+    numberSpan.className = "choice-number";
 
-numberSpan.textContent = num;
-textSpan.textContent = body;
-    
-btn.appendChild(numberSpan);
-btn.appendChild(textSpan);
-    
+    const textSpan = document.createElement("span");
+    textSpan.className = "choice-text";
+
+    const firstSpace = text.indexOf(" ");
+    const num = firstSpace === -1 ? "" : text.slice(0, firstSpace);
+    const body = firstSpace === -1 ? text : text.slice(firstSpace + 1);
+
+    numberSpan.textContent = num;
+    textSpan.textContent = body;
+
+    btn.appendChild(numberSpan);
+    btn.appendChild(textSpan);
+
     btn.addEventListener("click", () => {
       if (hasAnswered) return;
       hasAnswered = true;
@@ -251,15 +276,13 @@ btn.appendChild(textSpan);
           if (b.dataset.correct === "1") b.classList.add("correct");
         });
 
-        if (!wrongWordIds.has(word.id)) {
-          wrongWordIds.add(word.id);
-          wrongWords.push(word);
-        }
+        // ★ 間違い登録（通常 or 復習で入れ先が変わる）
+        recordWrong(word);
       }
 
       updateStats(word, isCorrect);
 
-      if (wrongWords.length > 0) {
+      if (wrongWords.length > 0 || wrongWordsThisRound.length > 0) {
         retryWrongBtn.disabled = false;
       }
 
@@ -275,7 +298,6 @@ btn.appendChild(textSpan);
     return str.toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-  // answers: ["本質的要素", "本質的な要素"] みたいな配列
   function isCorrectInput(userInput, answers) {
     const u = normalizeAnswer(userInput);
     if (!u) return false;
@@ -310,16 +332,14 @@ btn.appendChild(textSpan);
     wrapper.appendChild(checkBtn);
     choicesEl.appendChild(wrapper);
 
-    // Enterキー制御
+    // Enterキー制御（記述はここで完結）
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
 
       if (!hasAnswered) {
-        // まだ答えていない → 答え合わせ
         checkBtn.click();
       } else {
-        // すでに答えた → 次の問題へ
         nextBtn.click();
       }
     });
@@ -337,15 +357,14 @@ btn.appendChild(textSpan);
         feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
       } else {
         feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
-        if (!wrongWordIds.has(word.id)) {
-          wrongWordIds.add(word.id);
-          wrongWords.push(word);
-        }
+
+        // ★ 間違い登録（通常 or 復習で入れ先が変わる）
+        recordWrong(word);
       }
 
       updateStats(word, ok);
 
-      if (wrongWords.length > 0) {
+      if (wrongWords.length > 0 || wrongWordsThisRound.length > 0) {
         retryWrongBtn.disabled = false;
       }
 
@@ -365,7 +384,7 @@ btn.appendChild(textSpan);
     }
 
     const word = sessionWords[currentIndex];
-    currentWord = word;  // 発音ボタン用に保持
+    currentWord = word;
 
     hasAnswered = false;
     feedbackEl.textContent = "";
@@ -383,13 +402,13 @@ btn.appendChild(textSpan);
       }
     }
 
-    // モード（英→日 / 日→英）
+    // モード
     const modeInput = document.querySelector('input[name="mode"]:checked');
     currentMode = modeInput ? modeInput.value : "en-ja";
 
-    // 出題形式（4択 / 記述）
+    // 出題形式
     const qtypeInput = document.querySelector('input[name="qtype"]:checked');
-    const qtype = qtypeInput ? qtypeInput.value : "choice"; // "choice" or "input"
+    const qtype = qtypeInput ? qtypeInput.value : "choice";
     currentQType = qtype;
 
     let questionText;
@@ -397,22 +416,16 @@ btn.appendChild(textSpan);
     let field;
 
     if (currentMode === "en-ja") {
-      // 英語を見て日本語を書く／選ぶ
       questionText = word.en;
-      // ja_main + ja_sub の両方を記述の正解候補にする
       correctAnswers = [word.ja, word.jaSub].filter(Boolean);
       field = "ja";
-
-      // ★ 自動で英語を読み上げ（ブラウザによっては無視されることもある）
       speak(word.en, "en-US");
     } else {
-      // 日本語を見て英語を書く／選ぶ
       questionText = word.ja;
       correctAnswers = [word.en];
       field = "en";
     }
 
-    // 念のため、候補が1つもなければ落ちないように
     if (!correctAnswers.length) {
       correctAnswers = [currentMode === "en-ja" ? word.ja : word.en].filter(Boolean);
     }
@@ -420,10 +433,8 @@ btn.appendChild(textSpan);
     questionEl.textContent = questionText;
 
     if (qtype === "input") {
-      // 記述モード：配列のどれを書いても正解
       buildInputQuestion(correctAnswers, word);
     } else {
-      // 4択モード：メインの意味（配列の先頭）だけを正解として使う
       const correctAnswer = correctAnswers[0];
 
       const others = shuffle(
@@ -435,7 +446,7 @@ btn.appendChild(textSpan);
       );
 
       const numLabels = ["①", "②", "③", "④"];
-      
+
       options.forEach((opt, i) => {
         const isCorrect = opt === correctAnswer;
         const label = `${numLabels[i]} ${opt}`;
@@ -479,10 +490,17 @@ btn.appendChild(textSpan);
     let mode, year, count, qtype;
 
     currentSessionType = "normal";
+
+    // ★ 通常開始時は復習対象をリセット
     wrongWords = [];
     wrongWordIds = new Set();
+
+    // ★ 復習中の間違い箱もリセット
+    wrongWordsThisRound = [];
+    wrongWordIdsThisRound = new Set();
+
     retryWrongBtn.disabled = true;
-    
+
     if (!settings) {
       const modeInput = document.querySelector('input[name="mode"]:checked');
       mode = modeInput ? modeInput.value : "en-ja";
@@ -505,7 +523,7 @@ btn.appendChild(textSpan);
       pool = pool.filter((w) => (w.year || "") === year);
     }
 
-    // 記述モードのときだけ input_ok = 1 の単語に絞る
+    // 記述モードなら input_ok に絞る
     if (qtype === "input") {
       pool = pool.filter((w) => w.inputOk);
     }
@@ -534,16 +552,23 @@ btn.appendChild(textSpan);
     showQuestion();
   }
 
-  // ---- 間違えた問題だけ ----
+  // ---- 間違えた問題だけ（ここが要件の肝） ----
   function startWrongSession() {
-    if (!wrongWords.length) {
-      alert("まだ間違えた問題がありません。まずは普通に解いてみてください。");
+    // ★ 直前が復習なら「その復習中に間違えた分」だけを次の復習対象にする
+    const pool = (currentSessionType === "wrong") ? wrongWordsThisRound : wrongWords;
+
+    if (!pool.length) {
+      alert("まだ間違えた問題がありません。");
       return;
     }
 
     currentSessionType = "wrong";
 
-    sessionWords = shuffle(wrongWords.slice());
+    // ★ 次の復習のために箱をリセット（復習中にまた間違えた分がここに溜まる）
+    wrongWordsThisRound = [];
+    wrongWordIdsThisRound = new Set();
+
+    sessionWords = shuffle(pool.slice());
     currentIndex = 0;
     correctCount = 0;
 
@@ -552,38 +577,36 @@ btn.appendChild(textSpan);
     showQuestion();
   }
 
-document.addEventListener("keydown", (e) => {
-  const tag = document.activeElement?.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
-  
-  // クイズ画面じゃないなら無視
-  if (screenQuiz.style.display !== "block") return;
+  // =============================
+  //  キーボード操作（4択: 1〜4 / 回答後Enterで次へ）
+  // =============================
+  document.addEventListener("keydown", (e) => {
+    const tag = document.activeElement?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-  // IME変換中は無視（日本語入力中の誤作動防止）
-  if (e.isComposing) return;
+    if (screenQuiz.style.display !== "block") return;
+    if (e.isComposing) return;
 
-  // Enterは「答えた後だけ」次へ（4択/記述どっちでも使える）
-  if (e.key === "Enter" && hasAnswered && !nextBtn.disabled) {
-    e.preventDefault();
-    nextBtn.click();
-    return;
-  }
+    // 回答後のEnterで次へ
+    if (e.key === "Enter" && hasAnswered && !nextBtn.disabled) {
+      e.preventDefault();
+      nextBtn.click();
+      return;
+    }
 
-  // ここから下は「4択の回答前」だけに効かせる
-  if (currentQType !== "choice") return;
-  if (hasAnswered) return;
+    // 4択の回答前だけ 1〜4
+    if (currentQType !== "choice") return;
+    if (hasAnswered) return;
 
-  // 1〜4 で選択
-  const k = e.key;
-  if (k >= "1" && k <= "4") {
-    e.preventDefault();
-
-    const idx = Number(k) - 1;
-    const buttons = choicesEl.querySelectorAll("button.choice-btn");
-    const target = buttons[idx];
-    if (target && !target.disabled) target.click();
-  }
-});
+    const k = e.key;
+    if (k >= "1" && k <= "4") {
+      e.preventDefault();
+      const idx = Number(k) - 1;
+      const buttons = choicesEl.querySelectorAll("button.choice-btn");
+      const target = buttons[idx];
+      if (target && !target.disabled) target.click();
+    }
+  });
 
   // =============================
   //  イベント
@@ -596,11 +619,8 @@ document.addEventListener("keydown", (e) => {
   };
 
   retryBtn.onclick = () => {
-    if (lastSettings) {
-      startNormalSession(lastSettings);
-    } else {
-      startNormalSession(null);
-    }
+    if (lastSettings) startNormalSession(lastSettings);
+    else startNormalSession(null);
   };
 
   retryWrongBtn.onclick = () => {
@@ -611,11 +631,9 @@ document.addEventListener("keydown", (e) => {
     showScreen("home");
   };
 
-  // 🔊 ボタン：今の単語の英語を読む
   if (speakBtn) {
     speakBtn.onclick = () => {
       if (!currentWord) return;
-      // どっちのモードでも英語を読ませる
       speak(currentWord.en, "en-US");
     };
   }
