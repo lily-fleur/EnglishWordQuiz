@@ -215,8 +215,21 @@ window.addEventListener("load", async () => {
   function buildChoiceButton(text, isCorrect, word) {
     const btn = document.createElement("button");
     btn.className = "choice-btn";
-    btn.textContent = text;
+  const numberSpan = document.createElement("span");
+  numberSpan.className = "choice-number";
 
+  const textSpan = document.createElement("span");
+  textSpan.className = "choice-text";
+const firstSpace = text.indexOf(" ");
+const num = firstSpace === -1 ? "" : text.slice(0, firstSpace);
+const body = firstSpace === -1 ? text : text.slice(firstSpace + 1);
+
+numberSpan.textContent = num;
+textSpan.textContent = body;
+    
+btn.appendChild(numberSpan);
+btn.appendChild(textSpan);
+    
     btn.addEventListener("click", () => {
       if (hasAnswered) return;
       hasAnswered = true;
@@ -419,9 +432,11 @@ window.addEventListener("load", async () => {
         [correctAnswer].concat(others.map((w) => w[field]))
       );
 
+      const numLabels = ["①", "②", "③", "④"];
+      
       options.forEach((opt, i) => {
         const isCorrect = opt === correctAnswer;
-        const label = `${i + 1}. ${opt}`;
+        const label = `${numLabels[i]} ${opt}`;
         const btn = buildChoiceButton(label, isCorrect, word);
         choicesEl.appendChild(btn);
       });
