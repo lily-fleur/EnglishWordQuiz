@@ -17,6 +17,7 @@ let hasAnswered = false;
 let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
 let currentWord = null;             // 今出題している単語（発音ボタン用）
+let wrongWordIds = new Set();   // ★ 間違えた単語ID（重複防止）
 
 // ★ 単語ごとの成績
 let STATS = {};                     // { [id]: { seen, correct, wrong, lastAnsweredAt } }
@@ -234,7 +235,8 @@ window.addEventListener("load", async () => {
           if (b.dataset.correct === "1") b.classList.add("correct");
         });
 
-        if (!wrongWords.includes(word)) {
+        if (!wrongWordIds.has(word.id)) {
+          wrongWordIds.add(word.id);
           wrongWords.push(word);
         }
       }
@@ -319,7 +321,8 @@ window.addEventListener("load", async () => {
         feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
       } else {
         feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
-        if (!wrongWords.includes(word)) {
+        if (!wrongWordIds.has(word.id)) {
+          wrongWordIds.add(word.id);
           wrongWords.push(word);
         }
       }
@@ -457,8 +460,9 @@ window.addEventListener("load", async () => {
 
     currentSessionType = "normal";
     wrongWords = [];
+    wrongWordIds = new Set();
     retryWrongBtn.disabled = true;
-
+    
     if (!settings) {
       const modeInput = document.querySelector('input[name="mode"]:checked');
       mode = modeInput ? modeInput.value : "en-ja";
