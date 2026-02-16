@@ -1,27 +1,24 @@
-console.log("APP VERSION: 2026-02-16-02");
+console.log("APP VERSION: 2026-02-17-01");
 
 // =======================================
 //  Googleスプレッドシートの CSV URL
 // =======================================
 const CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
+  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6UU42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
 
 // =============================
 //  グローバル状態
 // =============================
 let WORDS = [];              // 全単語
 let sessionWords = [];       // 今回の出題リスト
-let wrongWords = [];         // 通常セッションで間違えた単語リスト
-let wrongWordIds = new Set();// 通常セッションの間違いID（重複防止）
-
-// ★ 復習(間違いだけ)中に間違えた単語 → 次の復習対象
-let wrongWordsThisRound = [];
-let wrongWordIdsThisRound = new Set();
+let wrongWords = [];         // 間違えた単語リスト（次の「間違えた問題だけ」の種）
+let wrongWordIds = new Set();// 間違えた単語ID（重複防止）
 
 let lastSettings = null;     // { mode, year, count, qtype }
 let currentIndex = 0;
 let correctCount = 0;
 let hasAnswered = false;
+
 let currentMode = "en-ja";          // "en-ja" or "ja-en"
 let currentSessionType = "normal";  // "normal" or "wrong"
 let currentWord = null;             // 今出題している単語（発音ボタン用）
@@ -68,30 +65,13 @@ function priorityScore(word) {
   const s = STATS[word.id];
   if (!s || !s.seen) return 1000; // 一度も出てないものは最優先
 
-  const accuracy = s.correct / s.seen; // 0〜1（高いほど得意）
+  const accuracy = s.correct / s.seen; // 0〜1
   const daysSince = (Date.now() - (s.lastAnsweredAt || 0)) / DAY_MS;
   return (1 - accuracy) * 10 + Math.min(daysSince, 10);
 }
 
-// ★ 間違いの記録（通常セッションか復習セッションかで入れ先を変える）
-function recordWrong(word) {
-  if (currentSessionType === "wrong") {
-    // 復習中に間違えた → 次の復習対象
-    if (!wrongWordIdsThisRound.has(word.id)) {
-      wrongWordIdsThisRound.add(word.id);
-      wrongWordsThisRound.push(word);
-    }
-  } else {
-    // 通常中に間違えた → 復習対象
-    if (!wrongWordIds.has(word.id)) {
-      wrongWordIds.add(word.id);
-      wrongWords.push(word);
-    }
-  }
-}
-
 // =============================
-//  CSV パーサー
+//  CSV パーサー（簡易）
 // =============================
 function parseCSV(text) {
   const lines = text
@@ -128,7 +108,6 @@ function normalizeRow(row, idx) {
   return {
     id: idx,
     en: row.en || "",
-    // ja_main があれば優先。なければ ja
     ja: row.ja_main || row.ja || "",
     jaSub: row.ja_sub || "",
     year: row.year || row.Year || "",
@@ -156,10 +135,10 @@ function speak(text, lang = "en-US") {
 
   const uttr = new SpeechSynthesisUtterance(text);
   uttr.lang = lang;
-  uttr.rate = 0.9;   // 少しゆっくり
+  uttr.rate = 0.9;
   uttr.pitch = 1.0;
 
-  speechSynthesis.cancel(); // 連打対策
+  speechSynthesis.cancel();
   speechSynthesis.speak(uttr);
 }
 
@@ -195,12 +174,33 @@ window.addEventListener("load", async () => {
   const yearBadgeEl = document.getElementById("year-badge");
   const speakBtn    = document.getElementById("speak-btn");
 
+  // ---- 重要：DOMが取れてないときは即止めて原因を出す ----
+  const missing = [];
+  if (!screenHome) missing.push("screen-home");
+  if (!screenQuiz) missing.push("screen-quiz");
+  if (!screenResult) missing.push("screen-result");
+  if (!startBtn) missing.push("start-btn");
+  if (!nextBtn) missing.push("next-btn");
+  if (!retryBtn) missing.push("retry-btn");
+  if (!retryWrongBtn) missing.push("retry-wrong-btn");
+  if (!backHomeBtn) missing.push("back-home-btn");
+  if (!questionEl) missing.push("question-text");
+  if (!choicesEl) missing.push("choices");
+  if (!feedbackEl) missing.push("feedback");
+  if (!progressBarEl) missing.push("progress-bar");
+  if (!statusEl) missing.push("status");
+  if (!resultSummaryEl) missing.push("result-summary");
+  if (!resultDetailEl) missing.push("result-detail");
+  if (missing.length) {
+    console.error("DOMが見つからない:", missing);
+    alert("HTMLのidが合ってない: " + missing.join(", "));
+    return;
+  }
+
   // ---- 単語ロード ----
   try {
     const rawRows = await loadWordsFromSheet();
-    WORDS = rawRows
-      .map(normalizeRow)
-      .filter((w) => w.en && w.ja);
+    WORDS = rawRows.map(normalizeRow).filter((w) => w.en && w.ja);
 
     if (!WORDS.length) {
       alert("単語データが空です。スプレッドシートの内容を確認してください。");
@@ -209,7 +209,7 @@ window.addEventListener("load", async () => {
 
     console.log("読み込んだ単語数:", WORDS.length);
   } catch (e) {
-    alert("単語データの読み込みに失敗しました。");
+    alert("単語データの読み込みに失敗しました。スプレッドシート公開設定/URLを確認してください。");
     console.error(e);
     return;
   }
@@ -235,21 +235,29 @@ window.addEventListener("load", async () => {
   //  クイズ処理
   // =============================
 
+  // ★ 間違い登録（重複防止）
+  function recordWrong(word) {
+    if (!wrongWordIds.has(word.id)) {
+      wrongWordIds.add(word.id);
+      wrongWords.push(word);
+    }
+  }
+
   // ---- 4択ボタン ----
-  function buildChoiceButton(text, isCorrect, word) {
+  function buildChoiceButton(labelText, isCorrect, word) {
     const btn = document.createElement("button");
     btn.className = "choice-btn";
 
-    // 表示を「番号」と「本文」に分割（安全版）
+    // 表示を「番号」と「本文」に分割（例: "① 〜〜"）
     const numberSpan = document.createElement("span");
     numberSpan.className = "choice-number";
 
     const textSpan = document.createElement("span");
     textSpan.className = "choice-text";
 
-    const firstSpace = text.indexOf(" ");
-    const num = firstSpace === -1 ? "" : text.slice(0, firstSpace);
-    const body = firstSpace === -1 ? text : text.slice(firstSpace + 1);
+    const firstSpace = labelText.indexOf(" ");
+    const num = firstSpace === -1 ? "" : labelText.slice(0, firstSpace);
+    const body = firstSpace === -1 ? labelText : labelText.slice(firstSpace + 1);
 
     numberSpan.textContent = num;
     textSpan.textContent = body;
@@ -276,16 +284,12 @@ window.addEventListener("load", async () => {
           if (b.dataset.correct === "1") b.classList.add("correct");
         });
 
-        // ★ 間違い登録（通常 or 復習で入れ先が変わる）
         recordWrong(word);
       }
 
       updateStats(word, isCorrect);
 
-      if (wrongWords.length > 0 || wrongWordsThisRound.length > 0) {
-        retryWrongBtn.disabled = false;
-      }
-
+      if (wrongWords.length > 0) retryWrongBtn.disabled = false;
       nextBtn.disabled = false;
     });
 
@@ -301,10 +305,7 @@ window.addEventListener("load", async () => {
   function isCorrectInput(userInput, answers) {
     const u = normalizeAnswer(userInput);
     if (!u) return false;
-
-    return answers
-      .map((s) => normalizeAnswer(s))
-      .some((ans) => ans && ans === u);
+    return answers.map(normalizeAnswer).some((ans) => ans && ans === u);
   }
 
   function buildInputQuestion(correctAnswers, word) {
@@ -332,16 +333,12 @@ window.addEventListener("load", async () => {
     wrapper.appendChild(checkBtn);
     choicesEl.appendChild(wrapper);
 
-    // Enterキー制御（記述はここで完結）
+    // Enterキー制御（記述はここ）
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
-
-      if (!hasAnswered) {
-        checkBtn.click();
-      } else {
-        nextBtn.click();
-      }
+      if (!hasAnswered) checkBtn.click();
+      else nextBtn.click();
     });
 
     checkBtn.addEventListener("click", () => {
@@ -357,16 +354,12 @@ window.addEventListener("load", async () => {
         feedbackEl.textContent = `⭕ 正解！ (${answerLabel})`;
       } else {
         feedbackEl.textContent = `❌ 不正解。正解: ${answerLabel}`;
-
-        // ★ 間違い登録（通常 or 復習で入れ先が変わる）
         recordWrong(word);
       }
 
       updateStats(word, ok);
 
-      if (wrongWords.length > 0 || wrongWordsThisRound.length > 0) {
-        retryWrongBtn.disabled = false;
-      }
+      if (wrongWords.length > 0) retryWrongBtn.disabled = false;
 
       input.readOnly = true;
       checkBtn.disabled = true;
@@ -393,13 +386,9 @@ window.addEventListener("load", async () => {
 
     // 年度表示
     if (yearBadgeEl) {
-      if (!word.year) {
-        yearBadgeEl.textContent = "";
-      } else if (word.year === "other") {
-        yearBadgeEl.textContent = "その他";
-      } else {
-        yearBadgeEl.textContent = `${word.year} 年度`;
-      }
+      if (!word.year) yearBadgeEl.textContent = "";
+      else if (word.year === "other") yearBadgeEl.textContent = "その他";
+      else yearBadgeEl.textContent = `${word.year} 年度`;
     }
 
     // モード
@@ -434,26 +423,28 @@ window.addEventListener("load", async () => {
 
     if (qtype === "input") {
       buildInputQuestion(correctAnswers, word);
-    } else {
-      const correctAnswer = correctAnswers[0];
-
-      const others = shuffle(
-        WORDS.filter((w) => w.id !== word.id && w[field])
-      ).slice(0, 3);
-
-      const options = shuffle(
-        [correctAnswer].concat(others.map((w) => w[field]))
-      );
-
-      const numLabels = ["①", "②", "③", "④"];
-
-      options.forEach((opt, i) => {
-        const isCorrect = opt === correctAnswer;
-        const label = `${numLabels[i]} ${opt}`;
-        const btn = buildChoiceButton(label, isCorrect, word);
-        choicesEl.appendChild(btn);
-      });
+      updateStatusAndProgress();
+      return;
     }
+
+    // 4択
+    const correctAnswer = correctAnswers[0];
+    const others = shuffle(
+      WORDS.filter((w) => w.id !== word.id && w[field])
+    ).slice(0, 3);
+
+    const options = shuffle(
+      [correctAnswer].concat(others.map((w) => w[field]))
+    );
+
+    const numLabels = ["①", "②", "③", "④"];
+
+    options.forEach((opt, i) => {
+      const isCorrect = opt === correctAnswer;
+      const label = `${numLabels[i]} ${opt}`;
+      const btn = buildChoiceButton(label, isCorrect, word);
+      choicesEl.appendChild(btn);
+    });
 
     updateStatusAndProgress();
   }
@@ -474,7 +465,7 @@ window.addEventListener("load", async () => {
       if (currentSessionType === "wrong") {
         resultDetailEl.textContent = "前に間違えた問題は全部解き直せたよ👍";
       } else {
-        resultDetailEl.textContent = "全問正解！🎉 その調子！";
+        resultDetailEl.textContent = "全問正解！🎉";
       }
     } else {
       resultDetailEl.textContent =
@@ -491,14 +482,9 @@ window.addEventListener("load", async () => {
 
     currentSessionType = "normal";
 
-    // ★ 通常開始時は復習対象をリセット
+    // 通常開始時：間違いをリセット
     wrongWords = [];
     wrongWordIds = new Set();
-
-    // ★ 復習中の間違い箱もリセット
-    wrongWordsThisRound = [];
-    wrongWordIdsThisRound = new Set();
-
     retryWrongBtn.disabled = true;
 
     if (!settings) {
@@ -515,15 +501,13 @@ window.addEventListener("load", async () => {
       ({ mode, year, count, qtype } = settings);
     }
 
-    currentMode = mode;
-
     // 年度フィルタ
     let pool = WORDS.slice();
     if (yearSelect && year !== "all") {
       pool = pool.filter((w) => (w.year || "") === year);
     }
 
-    // 記述モードなら input_ok に絞る
+    // 記述モードのときだけ input_ok = 1
     if (qtype === "input") {
       pool = pool.filter((w) => w.inputOk);
     }
@@ -552,23 +536,23 @@ window.addEventListener("load", async () => {
     showQuestion();
   }
 
-  // ---- 間違えた問題だけ（ここが要件の肝） ----
+  // ---- 間違えた問題だけ（直近の間違いだけにする） ----
   function startWrongSession() {
-    // ★ 直前が復習なら「その復習中に間違えた分」だけを次の復習対象にする
-    const pool = (currentSessionType === "wrong") ? wrongWordsThisRound : wrongWords;
-
-    if (!pool.length) {
-      alert("まだ間違えた問題がありません。");
+    if (!wrongWords.length) {
+      alert("まだ間違えた問題がありません。まずは普通に解いてみてください。");
       return;
     }
 
     currentSessionType = "wrong";
 
-    // ★ 次の復習のために箱をリセット（復習中にまた間違えた分がここに溜まる）
-    wrongWordsThisRound = [];
-    wrongWordIdsThisRound = new Set();
+    // ★ 直近の間違いだけを出題対象として退避
+    const latestWrong = wrongWords.slice();
 
-    sessionWords = shuffle(pool.slice());
+    // ★ 次の復習が「今回の復習で間違えた分だけ」になるようにリセット
+    wrongWords = [];
+    wrongWordIds = new Set();
+
+    sessionWords = shuffle(latestWrong);
     currentIndex = 0;
     correctCount = 0;
 
@@ -587,7 +571,7 @@ window.addEventListener("load", async () => {
     if (screenQuiz.style.display !== "block") return;
     if (e.isComposing) return;
 
-    // 回答後のEnterで次へ
+    // 回答後Enterで次へ（4択/記述どっちでも）
     if (e.key === "Enter" && hasAnswered && !nextBtn.disabled) {
       e.preventDefault();
       nextBtn.click();
@@ -619,8 +603,7 @@ window.addEventListener("load", async () => {
   };
 
   retryBtn.onclick = () => {
-    if (lastSettings) startNormalSession(lastSettings);
-    else startNormalSession(null);
+    startNormalSession(lastSettings || null);
   };
 
   retryWrongBtn.onclick = () => {
@@ -631,6 +614,7 @@ window.addEventListener("load", async () => {
     showScreen("home");
   };
 
+  // 🔊 ボタン：今の単語の英語を読む
   if (speakBtn) {
     speakBtn.onclick = () => {
       if (!currentWord) return;
