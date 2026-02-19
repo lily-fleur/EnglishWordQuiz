@@ -73,25 +73,39 @@ function priorityScore(word) {
 // =============================
 //  CSV パーサー（簡易）
 // =============================
+// =============================
+//  CSV パーサー
+// =============================
 function parseCSV(text) {
+  // 行ごとに分割して、空行を除く
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
+  // ヘッダー + データが最低1行ずつないとダメ
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map((h) => h.trim());
   const rows = [];
 
+  // 0行目はヘッダーなので 1 行目からループ
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h] = (cols[idx] || "").trim();
-    });
-    rows.push(obj);
+
+    // 列の「位置」で決め打ちする
+    // A列:英語, B列:メイン日本語, C列:サブ日本語, D列:year, E列:kind, F列:input_ok
+    const row = {
+      en:       (cols[0] || "").trim(),
+      ja_main:  (cols[1] || "").trim(),
+      ja_sub:   (cols[2] || "").trim(),
+      year:     (cols[3] || "").trim(),
+      kind:     (cols[4] || "").trim(),
+      input_ok: (cols[5] || "").trim(),
+    };
+
+    rows.push(row);
   }
+
   return rows;
 }
 
