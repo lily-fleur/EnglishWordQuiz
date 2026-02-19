@@ -4,8 +4,8 @@ console.log("APP VERSION: 2026-02-17-01");
 //  Googleスプレッドシートの CSV URL
 // =======================================
 const CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6UU42UU6LoWN6jcNVGZzuk/export?format=csv&gid=0";
-
+  "https://docs.google.com/spreadsheets/d/1eb5Qks5GwyyMM8UFOeKkPZ6U42UU6LoWN6jcNVGZzuk/gviz/tq?tqx=out:csv&gid=0";
+  
 // =============================
 //  グローバル状態
 // =============================
