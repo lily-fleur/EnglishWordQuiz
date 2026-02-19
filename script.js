@@ -71,39 +71,39 @@ function priorityScore(word) {
 }
 
 // =============================
-//  CSV パーサー（簡易）
-// =============================
-// =============================
-//  CSV パーサー
+//  CSV パーサー（ヘッダー名ベース）
 // =============================
 function parseCSV(text) {
-  // 行ごとに分割して、空行を除く
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  // ヘッダー + データが最低1行ずつないとダメ
   if (lines.length < 2) return [];
+
+  // "xxx" を xxx にする簡単クリーナー
+  const clean = (v) => {
+    let s = (v || "").trim();
+    if (s.startsWith('"') && s.endsWith('"')) {
+      s = s.slice(1, -1);
+    }
+    return s;
+  };
+
+  // 1行目をヘッダーとして読む（例: en,ja_main,ja_sub,year,kind,input_ok）
+  const headers = lines[0].split(",").map((h) => clean(h));
 
   const rows = [];
 
-  // 0行目はヘッダーなので 1 行目からループ
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",");
+    const obj = {};
 
-    // 列の「位置」で決め打ちする
-    // A列:英語, B列:メイン日本語, C列:サブ日本語, D列:year, E列:kind, F列:input_ok
-    const row = {
-      en:       (cols[0] || "").trim(),
-      ja_main:  (cols[1] || "").trim(),
-      ja_sub:   (cols[2] || "").trim(),
-      year:     (cols[3] || "").trim(),
-      kind:     (cols[4] || "").trim(),
-      input_ok: (cols[5] || "").trim(),
-    };
+    headers.forEach((h, idx) => {
+      obj[h] = clean(cols[idx] || "");
+    });
 
-    rows.push(row);
+    rows.push(obj);
   }
 
   return rows;
